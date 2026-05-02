@@ -27,10 +27,10 @@ class Config:
 
     # ─── Platforms ───────────────────────────────────────
     apify_actors: dict = field(default_factory=lambda: {
-        "instagram": "apify~instagram-scraper",
+        "instagram": "apify~instagram-hashtag-scraper",
         "tiktok": "clockworks~tiktok-scraper",
         "facebook": "apify~facebook-posts-scraper",
-        "youtube": "bernardo~youtube-scraper",
+        "youtube": "streamers~youtube-scraper",
     })
 
     # ─── Categories ──────────────────────────────────────

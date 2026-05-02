@@ -90,7 +90,13 @@ class DownloadTask(Base):
 # ─── Engine & Session ────────────────────────────────────
 
 DB_PATH = config.base_dir / "data" / "medispa.db"
-engine = create_engine(f"sqlite:///{DB_PATH}", echo=False)
+engine = create_engine(
+    f"sqlite:///{DB_PATH}",
+    echo=False,
+    pool_size=20,
+    max_overflow=40,
+    pool_pre_ping=True,
+)
 SessionLocal = sessionmaker(bind=engine)
 
 

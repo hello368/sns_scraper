@@ -1,5 +1,6 @@
 """
-Facebook Collector — 키워드로 영상 검색
+Facebook Collector — Facebook Posts Scraper (Apify)
+키워드 → Facebook 검색 URL로 변환하여 검색
 """
 from __future__ import annotations
 from typing import Optional
@@ -17,8 +18,10 @@ class FacebookCollector(PlatformCollector):
         return "apify~facebook-posts-scraper"
 
     def build_run_input(self, keyword: str, limit: int) -> dict:
+        # Facebook 검색 URL 구성 (video search)
+        search_url = f"https://www.facebook.com/search/videos/?q={keyword.replace(' ', '+')}"
         return {
-            "search": keyword,
+            "startUrls": [{"url": search_url}],
             "resultsLimit": limit,
             "scrapePosts": True,
             "scrapeVideo": True,

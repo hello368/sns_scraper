@@ -1,5 +1,5 @@
 """
-Instagram Collector — Reels 중심, 키워드 검색
+Instagram Collector — Instagram Hashtag Scraper (Apify)
 """
 from __future__ import annotations
 from typing import Optional
@@ -14,43 +14,37 @@ class InstagramCollector(PlatformCollector):
 
     @property
     def apify_actor(self) -> str:
-        return "apify~instagram-scraper"
+        return "apify~instagram-hashtag-scraper"
 
     def build_run_input(self, keyword: str, limit: int) -> dict:
-        # 해시태그는 띄어쓰기 없이 콤마로 연결
-        tags = keyword.replace(" ", "").split(",")
-        clean_tag = tags[0].strip("#").strip()[:50]
+        # 해시태그 형태로 변환 (공백 제거, # 제거)
+        clean_tag = keyword.replace("#", "").replace(" ", "").strip()[:50]
         return {
-            "searchType": "hashtag",
-            "searchQueries": [clean_tag],
+            "hashtags": [clean_tag],
             "resultsLimit": limit,
-            "scrapeReels": True,
-            "scrapePosts": False,        # Reels만
-            "scrapeStories": False,
         }
 
     def parse_item(self, raw: dict) -> Optional[dict]:
-        url = raw.get("videoUrl") or raw.get("url") or raw.get("webLink")
+        url = raw.get("url")
         if not url:
             return None
+        # Video only (Reels/Video 타입만)
+        content_type = raw.get("type", "").lower()
+        caption = raw.get("caption") or ""
         return {
             "platform": "instagram",
             "url": url,
-            "title": (raw.get("caption") or "")[:200],
-            "description": (raw.get("caption") or "")[:500],
-            "thumbnail_url": raw.get("thumbnailUrl") or raw.get("imageUrl", ""),
-            "username": raw.get("username") or raw.get("ownerFullName", ""),
-            "likes": raw.get("likesCount", 0),
+            "title": caption[:200],
+            "description": caption[:500],
+            "thumbnail_url": raw.get("displayUrl") or raw.get("thumbnailUrl", ""),
+            "username": "",  # hashtag scraper doesn't include username directly
+            "likes": 0,  # not provided by this actor
             "comments": raw.get("commentsCount", 0),
-            "created_at": raw.get("createdAt") or raw.get("timestamp", ""),
+            "created_at": "",
         }
 
     def validate(self, parsed: dict) -> bool:
-        """광고와 비릴스 제외"""
         if not super().validate(parsed):
-            return False
-        title = (parsed.get("title") or "").lower()
-        if "ad" in title or "sponsored" in title or "promo" in title:
             return False
         if not parsed.get("url", "").startswith("https://"):
             return False

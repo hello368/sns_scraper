@@ -14,7 +14,7 @@ class YouTubeCollector(PlatformCollector):
 
     @property
     def apify_actor(self) -> str:
-        return "bernardo~youtube-scraper"
+        return "streamers~youtube-scraper"
 
     def build_run_input(self, keyword: str, limit: int) -> dict:
         return {
@@ -34,10 +34,10 @@ class YouTubeCollector(PlatformCollector):
             "platform": "youtube",
             "url": url,
             "title": (raw.get("title") or "")[:200],
-            "description": (raw.get("description") or "")[:500],
+            "description": (raw.get("description") or raw.get("translatedTitle") or "")[:500],
             "thumbnail_url": raw.get("thumbnailUrl") or raw.get("thumbnails", [{}])[0].get("url", ""),
-            "username": raw.get("channelName") or raw.get("username", ""),
-            "likes": raw.get("likeCount", 0),
+            "username": raw.get("channelName") or raw.get("channelUsername") or raw.get("username", ""),
+            "likes": raw.get("likes") or raw.get("likeCount", 0),
             "comments": raw.get("commentCount", 0),
-            "created_at": raw.get("publishedAt") or raw.get("createdAt", ""),
+            "created_at": raw.get("date") or raw.get("publishedAt") or raw.get("createdAt", ""),
         }
