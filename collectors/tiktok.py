@@ -20,23 +20,25 @@ class TikTokCollector(PlatformCollector):
         return {
             "searchQueries": [keyword],
             "resultsLimit": limit,
+            "maxResults": limit,
             "scrapeVideoMetadata": True,
         }
 
     def parse_item(self, raw: dict) -> Optional[dict]:
-        url = raw.get("url") or raw.get("webLink") or raw.get("videoUrl")
+        url = raw.get("webVideoUrl") or raw.get("videoUrl") or raw.get("url") or raw.get("webLink")
         if not url:
             return None
+        author = raw.get("authorMeta", {}) or {}
         return {
             "platform": "tiktok",
             "url": url,
-            "title": (raw.get("caption") or raw.get("desc") or raw.get("text", ""))[:200],
-            "description": (raw.get("caption") or raw.get("desc", ""))[:500],
+            "title": (raw.get("text") or raw.get("desc", ""))[:200],
+            "description": (raw.get("text") or raw.get("desc", ""))[:500],
             "thumbnail_url": raw.get("thumbnailUrl") or raw.get("imageUrl", ""),
-            "username": raw.get("username") or raw.get("authorMeta", {}).get("name", ""),
+            "username": author.get("name", raw.get("username", "")),
             "likes": raw.get("diggCount", raw.get("likeCount", 0)),
             "comments": raw.get("commentCount", 0),
-            "created_at": raw.get("createTime") or raw.get("createdAt", ""),
+            "created_at": raw.get("createTime") or raw.get("createTimeISO", ""),
         }
 
     def validate(self, parsed: dict) -> bool:

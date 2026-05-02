@@ -1,13 +1,14 @@
 """
-검색 워커 — Pipeline Stage 1: 플랫폼 검색 → 필터링 → DB 저장
+검색 워커 — Pipeline Stage 1: 플랫폼 검색 → 필터링 → DB 저장 (완전 동기)
 """
 from __future__ import annotations
-import asyncio
+import json
 import logging
+import time
 from typing import Optional
 
 from core.config import config
-from core.client import get_apify_client
+from core.client import get_apify_client, get_deepseek_client
 from core.errors import ApifyError
 from storage.repository import Repository
 from processors.dedup import Deduplicator
@@ -16,12 +17,9 @@ from processors.scorer import Scorer
 logger = logging.getLogger(__name__)
 
 
-# 플랫폼 → Collector 클래스 매핑 (lazy import)
 _COLLECTOR_MAP: dict = {}
 
-
 def _get_collector(platform: str):
-    """플랫폼 이름으로 Collector 인스턴스 반환"""
     if platform not in _COLLECTOR_MAP:
         if platform == "instagram":
             from collectors.instagram import InstagramCollector
@@ -41,31 +39,30 @@ def _get_collector(platform: str):
 
 
 class SearchWorker:
-    """검색 파이프라인 실행"""
+    """검색 파이프라인 (완전 동기, asyncio 없음)"""
 
     def __init__(self, repo: Optional[Repository] = None):
         self._repo = repo or Repository()
         self._apify = get_apify_client()
 
-    async def run(self, keywords: list[str],
-                  platforms: list[str] | None = None,
-                  max_per_keyword: int | None = None) -> dict:
-        """전체 검색 파이프라인 실행"""
+    def run(self, keywords: list[str],
+            platforms: list[str] | None = None,
+            max_per_keyword: int | None = None) -> dict:
+        """전체 검색 파이프라인 실행 (동기)"""
         platforms = platforms or list(config.apify_actors.keys())
         max_per_keyword = max_per_keyword or config.max_results_per_keyword
 
         # 1. 키워드 확장
-        from processors.classifier import Classifier  # temp
-        all_keywords = await self._expand_keywords(keywords)
+        all_keywords = self._expand_keywords(keywords)
+        logger.info(f"🔑 키워드 {len(keywords)}개 → {len(all_keywords)}개 확장됨")
 
-        # 2. 플랫폼별 병렬 검색
-        all_results = await self._search_all_platforms(
-            all_keywords, platforms, max_per_keyword
-        )
+        # 2. 플랫폼별 검색
+        all_results = self._search_all_platforms(all_keywords, platforms, max_per_keyword)
 
         # 3. 중복 제거
         deduper = Deduplicator(self._repo)
         filtered = deduper.dedup(all_results)
+        logger.info(f"📊 중복 제거: {len(all_results)} → {len(filtered)}")
 
         # 4. AI 스코어링
         if filtered:
@@ -86,6 +83,7 @@ class SearchWorker:
             )
             saved_count += 1
 
+        logger.info(f"✅ 저장 완료: {saved_count}개 신규 영상")
         return {
             "keywords_used": len(all_keywords),
             "total_raw": len(all_results),
@@ -94,11 +92,8 @@ class SearchWorker:
             "platforms": platforms,
         }
 
-    async def _expand_keywords(self, seeds: list[str]) -> list[str]:
+    def _expand_keywords(self, seeds: list[str]) -> list[str]:
         """DeepSeek으로 키워드 확장"""
-        from core.client import get_deepseek_client
-        import json
-
         client = get_deepseek_client()
         if not client:
             return seeds
@@ -122,55 +117,35 @@ class SearchWorker:
             )
             data = json.loads(resp.choices[0].message.content)
             expanded = data.get("queries", data.get("keywords", []))
-            return list(dict.fromkeys(seeds + expanded))  # 중복 제거
+            return list(dict.fromkeys(seeds + expanded))
         except Exception as e:
             logger.warning(f"키워드 확장 실패: {e}")
             return seeds
 
-    async def _search_all_platforms(
+    def _search_all_platforms(
         self, keywords: list[str], platforms: list[str], limit: int
     ) -> list[dict]:
-        """모든 플랫폼 × 모든 키워드 병렬 검색"""
+        """모든 플랫폼 × 모든 키워드 검색 (동기, 순차)"""
         if not self._apify:
             logger.error("Apify 미설정, 검색 불가")
             return []
 
-        tasks = []
-        for keyword in keywords:
-            for platform in platforms:
-                # 이미 오늘 검색한 조합이면 스킵
-                if self._repo.already_searched(keyword, platform):
-                    logger.info(f"  ⏭️ 이미 검색됨: {platform}/{keyword}")
-                    continue
-                tasks.append(self._search_one(platform, keyword, limit))
-
-        if not tasks:
-            return []
-
-        # 최대 search_concurrent 개씩 실행
         results = []
-        sem = asyncio.Semaphore(config.search_concurrent)
-
-        async def bounded_search(platform, keyword, limit):
-            async with sem:
-                return await self._search_one(platform, keyword, limit)
-
-        batch = [bounded_search(p, k, l) for p, k, l in
-                 [(t[0], t[1], t[2]) for t in [(p, k, limit)
-                  for p in platforms for k in keywords]]]
-        # Actually, let me redo this more cleanly
-        # For now, run sequentially but mark as parallel-ready
-
-        # 실제로는 asyncio.gather, 지금은 간단하게 동기 실행
         for keyword in keywords:
             for platform in platforms:
-                items = await self._search_one(platform, keyword, limit)
-                results.extend(items)
+                if self._repo.already_searched(keyword, platform):
+                    logger.info(f"  ⏭️ 이미 검색됨: {platform}/{keyword[:30]}")
+                    continue
+                try:
+                    items = self._search_one(platform, keyword, limit)
+                    results.extend(items)
+                    time.sleep(1)  # rate limit
+                except Exception as e:
+                    logger.error(f"검색 실패 {platform}/{keyword[:30]}: {e}")
 
         return results
 
-    async def _search_one(self, platform: str, keyword: str,
-                           limit: int) -> list[dict]:
+    def _search_one(self, platform: str, keyword: str, limit: int) -> list[dict]:
         """단일 플랫폼 × 단일 키워드 검색"""
         try:
             collector = _get_collector(platform)
@@ -190,14 +165,14 @@ class SearchWorker:
             self._repo.save_search(keyword, platform, status="failed", error=str(e))
             return []
 
-        # 결과 수집
         results = []
         for item in self._apify.dataset(run["defaultDatasetId"]).iterate_items():
             parsed = collector.parse_item(item)
             if parsed and collector.validate(parsed):
                 results.append(parsed)
+                if len(results) >= limit:
+                    break
 
-        # 검색 이력 저장
         self._repo.save_search(
             keyword=keyword, platform=platform,
             result_count=len(results),

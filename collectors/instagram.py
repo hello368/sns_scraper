@@ -17,9 +17,12 @@ class InstagramCollector(PlatformCollector):
         return "apify~instagram-scraper"
 
     def build_run_input(self, keyword: str, limit: int) -> dict:
+        # 해시태그는 띄어쓰기 없이 콤마로 연결
+        tags = keyword.replace(" ", "").split(",")
+        clean_tag = tags[0].strip("#").strip()[:50]
         return {
-            "searchType": "keyword",
-            "searchQueries": [keyword],
+            "searchType": "hashtag",
+            "searchQueries": [clean_tag],
             "resultsLimit": limit,
             "scrapeReels": True,
             "scrapePosts": False,        # Reels만
