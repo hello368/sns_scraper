@@ -34,6 +34,20 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 }
 
+const REGION_NAMES: Record<string, string> = {
+  US: "🇺🇸 USA",
+  JP: "🇯🇵 Japan",
+  KR: "🇰🇷 Korea",
+  EU: "🇪🇺 Europe",
+}
+
+const REGION_COLORS: Record<string, string> = {
+  US: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  JP: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  KR: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  EU: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+}
+
 function StatCard({
   icon: Icon,
   label,
@@ -102,9 +116,15 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<LibraryStats | null>(null)
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [regionFilter, setRegionFilter] = useState<string>("all")
 
   useEffect(() => {
-    Promise.all([api.getStatus(), api.getStats(), api.getVideos({ limit: 10 })])
+    const regionParam = regionFilter !== "all" ? regionFilter : undefined
+    Promise.all([
+      api.getStatus(),
+      api.getStats(regionParam),
+      api.getVideos({ limit: 10, region: regionParam }),
+    ])
       .then(([s, st, v]) => {
         setStatus(s)
         setStats(st)
@@ -112,7 +132,7 @@ export default function DashboardPage() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }, [regionFilter])
 
   if (loading) {
     return (
@@ -168,6 +188,36 @@ export default function DashboardPage() {
           value={status?.pending_downloads ?? 0}
           description="다운로드 대기 중"
         />
+      </div>
+
+      {/* Region Filter */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Region:</span>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setRegionFilter("all")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              regionFilter === "all"
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted hover:bg-muted/80"
+            }`}
+          >
+            All
+          </button>
+          {Object.entries(REGION_NAMES).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setRegionFilter(key)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                regionFilter === key
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted hover:bg-muted/80"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -270,6 +320,7 @@ export default function DashboardPage() {
                 <TableRow>
                   <TableHead>Title</TableHead>
                   <TableHead>Platform</TableHead>
+                  <TableHead>Region</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead>Score</TableHead>
                   <TableHead>Downloaded</TableHead>
@@ -295,6 +346,14 @@ export default function DashboardPage() {
                         variant="outline"
                       >
                         {v.platform}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        className={REGION_COLORS[v.region] ?? ""}
+                        variant="outline"
+                      >
+                        {REGION_NAMES[v.region] || v.region}
                       </Badge>
                     </TableCell>
                     <TableCell>

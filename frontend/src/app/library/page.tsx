@@ -53,6 +53,20 @@ const CATEGORY_COLORS: Record<string, string> = {
   other: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
 }
 
+const REGION_NAMES: Record<string, string> = {
+  US: "🇺🇸 USA",
+  JP: "🇯🇵 Japan",
+  KR: "🇰🇷 Korea",
+  EU: "🇪🇺 Europe",
+}
+
+const REGION_COLORS: Record<string, string> = {
+  US: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  JP: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  KR: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+  EU: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+}
+
 export default function LibraryPage() {
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [stats, setStats] = useState<LibraryStats | null>(null)
@@ -60,15 +74,17 @@ export default function LibraryPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [platformFilter, setPlatformFilter] = useState("all")
+  const [regionFilter, setRegionFilter] = useState("all")
   const [downloading, setDownloading] = useState<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [downloadingAll, setDownloadingAll] = useState(false)
 
   const fetchData = useCallback(async () => {
     try {
+      const regionParam = regionFilter !== "all" ? regionFilter : undefined
       const [v, s] = await Promise.all([
-        api.getVideos({ limit: 200 }),
-        api.getStats(),
+        api.getVideos({ limit: 200, region: regionParam }),
+        api.getStats(regionParam),
       ])
       setVideos(v)
       setStats(s)
@@ -77,7 +93,7 @@ export default function LibraryPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [regionFilter])
 
   useEffect(() => {
     fetchData()
@@ -87,6 +103,7 @@ export default function LibraryPage() {
   const filtered = videos.filter((v) => {
     if (categoryFilter !== "all" && v.category !== categoryFilter) return false
     if (platformFilter !== "all" && v.platform !== platformFilter) return false
+    if (regionFilter !== "all" && v.region !== regionFilter) return false
     if (searchTerm) {
       const q = searchTerm.toLowerCase()
       const matchTitle = v.title?.toLowerCase().includes(q)
@@ -261,6 +278,20 @@ export default function LibraryPage() {
             <SelectItem value="youtube">YouTube</SelectItem>
           </SelectContent>
         </Select>
+        <Select
+          value={regionFilter}
+          onValueChange={(value: string | null) => setRegionFilter(value ?? "all")}
+        >
+          <SelectTrigger className="w-[130px]">
+            <SelectValue placeholder="Region" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Regions</SelectItem>
+            {Object.entries(REGION_NAMES).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Video Grid */}
@@ -349,6 +380,16 @@ export default function LibraryPage() {
                         }`}
                       >
                         {video.category}
+                      </Badge>
+                    )}
+                    {video.region && (
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] px-1.5 py-0 ${
+                          REGION_COLORS[video.region] ?? ""
+                        }`}
+                      >
+                        {REGION_NAMES[video.region] || video.region}
                       </Badge>
                     )}
                     {video.relevance_score != null && (

@@ -53,6 +53,7 @@ export const api = {
     const params = new URLSearchParams()
     if (query?.category) params.set("category", query.category)
     if (query?.platform) params.set("platform", query.platform)
+    if (query?.region) params.set("region", query.region)
     if (query?.downloaded !== undefined) params.set("downloaded", String(query.downloaded))
     if (query?.limit) params.set("limit", String(query.limit))
     if (query?.offset) params.set("offset", String(query.offset))
@@ -62,8 +63,9 @@ export const api = {
     ).then((r) => r.videos)
   },
 
-  getStats(): Promise<LibraryStats> {
-    return fetchApi("/library/stats")
+  getStats(region?: string): Promise<LibraryStats> {
+    const qs = region ? `?region=${region}` : ""
+    return fetchApi(`/library/stats${qs}`)
   },
 
   // ─── Download ──────────────────────────────

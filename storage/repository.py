@@ -67,12 +67,13 @@ class Repository:
     def save_video(self, url: str, platform: str, title: str = "",
                    description: str = "", thumbnail_url: str = "",
                    username: str = "", category: str = "other",
+                   region: str = "US",
                    relevance_score: float = 5.0, tags: list = None) -> Video:
         vid = video_id_from_url(url)
         video = Video(
             id=vid, url=url, platform=platform, title=title[:500],
             description=description, thumbnail_url=thumbnail_url,
-            username=username, category=category,
+            username=username, category=category, region=region,
             relevance_score=relevance_score,
             tags=json.dumps(tags or []),
         )
@@ -94,6 +95,7 @@ class Repository:
 
     def get_videos(self, category: Optional[str] = None,
                    platform: Optional[str] = None,
+                   region: Optional[str] = None,
                    downloaded: Optional[int] = None,
                    limit: int = 100, offset: int = 0):
         q = self._session.query(Video)
@@ -101,27 +103,35 @@ class Repository:
             q = q.filter(Video.category == category)
         if platform:
             q = q.filter(Video.platform == platform)
+        if region:
+            q = q.filter(Video.region == region)
         if downloaded is not None:
             q = q.filter(Video.downloaded == downloaded)
         return q.order_by(Video.created_at.desc()).limit(limit).offset(offset).all()
 
-    def count_videos(self, category: Optional[str] = None) -> int:
+    def count_videos(self, category: Optional[str] = None,
+                     region: Optional[str] = None) -> int:
         q = self._session.query(Video)
         if category:
             q = q.filter(Video.category == category)
+        if region:
+            q = q.filter(Video.region == region)
         return q.count()
 
-    def get_library_stats(self) -> dict:
+    def get_library_stats(self, region: Optional[str] = None) -> dict:
         """대시보드용 통계"""
-        total = self._session.query(Video).count()
-        downloaded = self._session.query(Video).filter(Video.downloaded == 1).count()
-        by_category = self._session.query(
+        base = self._session.query(Video)
+        if region:
+            base = base.filter(Video.region == region)
+        total = base.count()
+        downloaded = base.filter(Video.downloaded == 1).count()
+        by_category = base.with_entities(
             Video.category, func.count(Video.id)
         ).group_by(Video.category).all()
-        by_platform = self._session.query(
+        by_platform = base.with_entities(
             Video.platform, func.count(Video.id)
         ).group_by(Video.platform).all()
-        total_bytes = self._session.query(
+        total_bytes = base.with_entities(
             func.sum(Video.filesize_bytes)
         ).filter(Video.downloaded == 1).scalar() or 0
         return {

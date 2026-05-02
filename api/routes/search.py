@@ -23,6 +23,7 @@ def search(req: SearchRequest):
             keywords=req.keywords,
             platforms=req.platforms,
             max_per_keyword=req.max_per_keyword,
+            region=req.region,
         )
     except (ApifyAuthError, ApifyQuotaError) as e:
         status_code = ERROR_TO_STATUS.get(type(e), 500)

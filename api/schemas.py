@@ -17,6 +17,7 @@ class SearchRequest(BaseModel):
         max_length=10,
     )
     max_per_keyword: int = Field(default=20, ge=1, le=100)
+    region: str = Field(default="US", pattern=r"^(US|JP|KR|EU)$")
     use_ai_scoring: bool = True
 
 
@@ -43,6 +44,7 @@ class DownloadResponse(BaseModel):
 class LibraryQuery(BaseModel):
     category: Optional[str] = None
     platform: Optional[str] = None
+    region: Optional[str] = None
     downloaded: Optional[bool] = None
     limit: int = Field(default=50, ge=1, le=200)
     offset: int = Field(default=0, ge=0)

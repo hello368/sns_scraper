@@ -41,6 +41,13 @@ def _get_collector(platform: str):
 class SearchWorker:
     """검색 파이프라인 (완전 동기, asyncio 없음)"""
 
+    REGION_NAMES = {
+        "US": "United States, USA, America",
+        "JP": "Japan, 日本",
+        "KR": "South Korea, 한국",
+        "EU": "Europe, EU, France, Germany, Italy, Spain, UK",
+    }
+
     def __init__(self, repo: Optional[Repository] = None):
         self._repo = repo or Repository()
         self._apify = get_apify_client()
@@ -48,6 +55,7 @@ class SearchWorker:
     def run(self, keywords: list[str],
             platforms: list[str] | None = None,
             max_per_keyword: int | None = None,
+            region: str = "US",
             dedup_hours: int = 24) -> dict:
         """전체 검색 파이프라인 실행 (동기)
 
@@ -58,10 +66,11 @@ class SearchWorker:
         platforms = platforms or list(config.apify_actors.keys())
         max_per_keyword = max_per_keyword or config.max_results_per_keyword
         self._dedup_hours = dedup_hours
+        self._target_region = region
 
-        # 1. 키워드 확장
-        all_keywords = self._expand_keywords(keywords)
-        logger.info(f"🔑 키워드 {len(keywords)}개 → {len(all_keywords)}개 확장됨")
+        # 1. 키워드 확장 (지역 반영)
+        all_keywords = self._expand_keywords(keywords, region)
+        logger.info(f"🔑 키워드 {len(keywords)}개 → {len(all_keywords)}개 확장됨 (region={region})")
 
         # 2. 플랫폼별 검색
         all_results = self._search_all_platforms(all_keywords, platforms, max_per_keyword)
@@ -76,7 +85,7 @@ class SearchWorker:
             scorer = Scorer()
             filtered = scorer.score(filtered)
 
-        # 5. DB 저장
+        # 5. DB 저장 (region 포함)
         saved_count = 0
         for item in filtered:
             self._repo.save_video(
@@ -86,37 +95,48 @@ class SearchWorker:
                 description=item.get("description", ""),
                 thumbnail_url=item.get("thumbnail_url", ""),
                 username=item.get("username", ""),
+                region=region,
                 relevance_score=item.get("relevance_score", 5.0),
             )
             saved_count += 1
 
-        logger.info(f"✅ 저장 완료: {saved_count}개 신규 영상")
+        logger.info(f"✅ 저장 완료: {saved_count}개 신규 영상 (region={region})")
         return {
             "keywords_used": len(all_keywords),
             "total_raw": len(all_results),
             "after_dedup": len(filtered),
             "saved_to_db": saved_count,
             "platforms": platforms,
+            "region": region,
         }
 
-    def _expand_keywords(self, seeds: list[str]) -> list[str]:
-        """DeepSeek으로 키워드 확장"""
+    def _expand_keywords(self, seeds: list[str], region: str = "US") -> list[str]:
+        """DeepSeek으로 키워드 확장 — 지역 반영"""
         client = get_deepseek_client()
         if not client:
             return seeds
 
+        region_names = self.REGION_NAMES.get(region, "Global")
         try:
             resp = client.chat.completions.create(
                 model=config.deepseek_model,
                 messages=[{
                     "role": "system",
-                    "content": "Generate 10 search queries. Return JSON: {\"queries\": [...]}",
+                    "content": (
+                        "Generate 10 search queries tailored for the specified region. "
+                        "Return JSON: {\"queries\": [...]}"
+                    ),
                 }, {
                     "role": "user",
                     "content": json.dumps({
                         "task": "expand_keywords",
                         "seeds": seeds,
-                        "context": "Medical spa, facial, botox, filler treatment videos",
+                        "region": region,
+                        "region_names": region_names,
+                        "context": (
+                            f"Medical spa, facial, botox, filler treatment videos "
+                            f"relevant to {region_names}. Use localized terms."
+                        ),
                     }),
                 }],
                 response_format={"type": "json_object"},

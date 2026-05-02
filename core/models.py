@@ -56,6 +56,7 @@ class Video(Base):
     filepath = Column(String(1024))
     filesize_bytes = Column(Integer, default=0)
     duration_sec = Column(Integer, default=0)
+    region = Column(String(10), default="US", index=True) # US, JP, KR, EU
     relevance_score = Column(Float, default=5.0)
     tags = Column(Text)                                  # JSON array
     downloaded = Column(Integer, default=0)              # 0: no, 1: yes

@@ -2,6 +2,7 @@ export interface SearchRequest {
   keywords: string[]
   platforms: string[]
   max_per_keyword: number
+  region: string
   use_ai_scoring: boolean
 }
 
@@ -23,6 +24,7 @@ export interface VideoItem {
   thumbnail_url: string
   username: string
   category: string
+  region: string
   relevance_score: number
   downloaded: boolean
   filepath: string
@@ -64,6 +66,7 @@ export interface DownloadResponse {
 export interface LibraryQuery {
   category?: string
   platform?: string
+  region?: string
   downloaded?: boolean
   limit?: number
   offset?: number

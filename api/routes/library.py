@@ -11,16 +11,17 @@ router = APIRouter(prefix="/library", tags=["library"])
 
 
 @router.get("/stats")
-def library_stats():
+def library_stats(region: Optional[str] = Query(None)):
     """라이브러리 통계"""
     repo = Repository()
-    return repo.get_library_stats()
+    return repo.get_library_stats(region=region)
 
 
 @router.get("/videos")
 def list_videos(
     category: Optional[str] = Query(None),
     platform: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
@@ -29,6 +30,7 @@ def list_videos(
     videos = repo.get_videos(
         category=category,
         platform=platform,
+        region=region,
         limit=limit,
         offset=offset,
     )
@@ -44,6 +46,7 @@ def list_videos(
                 "thumbnail_url": v.thumbnail_url,
                 "username": v.username,
                 "category": v.category,
+                "region": v.region or "US",
                 "duration_sec": v.duration_sec or 0,
                 "filesize_bytes": v.filesize_bytes or 0,
                 "downloaded": bool(v.downloaded),

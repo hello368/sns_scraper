@@ -27,6 +27,13 @@ const PLATFORMS = [
   { id: "youtube", label: "YouTube", icon: Film, color: "text-red-500" },
 ]
 
+const REGIONS = [
+  { id: "US", label: "🇺🇸 USA" },
+  { id: "JP", label: "🇯🇵 Japan" },
+  { id: "KR", label: "🇰🇷 Korea" },
+  { id: "EU", label: "🇪🇺 Europe" },
+]
+
 const DEFAULT_KEYWORDS =
   "medical spa facial\nbotox injection before after\ndermal filler treatment\nlaser skin resurfacing\nmicroneedling before after"
 
@@ -37,6 +44,7 @@ export default function SearchPage() {
     "instagram",
     "youtube",
   ])
+  const [selectedRegion, setSelectedRegion] = useState("US")
   const [expandedKeywords, setExpandedKeywords] = useState<string[]>([])
   const [searching, setSearching] = useState(false)
   const [expanding, setExpanding] = useState(false)
@@ -139,6 +147,7 @@ export default function SearchPage() {
         keywords: useKeywords,
         platforms: selectedPlatforms,
         max_per_keyword: 20,
+        region: selectedRegion,
         use_ai_scoring: true,
       })
       setResult(res)
@@ -262,6 +271,26 @@ export default function SearchPage() {
               })}
             </div>
 
+            {/* Region Selector */}
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Target Region</p>
+              <div className="flex gap-2">
+                {REGIONS.map((r) => (
+                  <button
+                    key={r.id}
+                    onClick={() => setSelectedRegion(r.id)}
+                    className={`flex-1 rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
+                      selectedRegion === r.id
+                        ? "border-primary bg-accent"
+                        : "hover:bg-accent/50"
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Search Plan Summary */}
             <div className="rounded-lg bg-muted/50 p-3 space-y-1">
               <div className="flex justify-between text-xs">
@@ -273,6 +302,10 @@ export default function SearchPage() {
                 <span className="font-medium">
                   {selectedPlatforms.length}
                 </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Region</span>
+                <span className="font-medium">{REGIONS.find(r => r.id === selectedRegion)?.label || selectedRegion}</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Expected calls</span>
@@ -317,7 +350,7 @@ export default function SearchPage() {
               <div className="flex-1">
                 <p className="text-sm font-medium">
                   Searching {useKeywords.length} keywords ×{" "}
-                  {selectedPlatforms.length} platforms
+                  {selectedPlatforms.length} platforms in {REGIONS.find(r => r.id === selectedRegion)?.label || selectedRegion}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   <Clock className="inline h-3 w-3 mr-1" />
