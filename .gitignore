@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.env
+.venv/
+venv/
+
+# Data
+data/treatments/*.mp4
+data/treatments/*.webm
+data/treatments/*.mkv
+data/*.db
+data/*.db-journal
+data/metadata/
+
+# Node
+node_modules/
+.next/
+frontend/out/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
