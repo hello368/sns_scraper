@@ -37,15 +37,18 @@ def list_videos(
         "videos": [
             {
                 "id": v.id,
+                "url": v.url,
                 "platform": v.platform,
                 "title": v.title,
+                "description": v.description,
                 "thumbnail_url": v.thumbnail_url,
+                "username": v.username,
                 "category": v.category,
-                "duration_sec": v.duration_sec,
-                "filesize_bytes": v.filesize_bytes,
+                "duration_sec": v.duration_sec or 0,
+                "filesize_bytes": v.filesize_bytes or 0,
                 "downloaded": bool(v.downloaded),
-                "filepath": v.filepath,
-                "relevance_score": v.relevance_score,
+                "filepath": v.filepath or "",
+                "relevance_score": v.relevance_score or 5.0,
                 "created_at": str(v.created_at)[:19] if v.created_at else "",
             }
             for v in videos

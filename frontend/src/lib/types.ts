@@ -20,23 +20,23 @@ export interface VideoItem {
   platform: string
   title: string
   description: string
-  author: string
   thumbnail_url: string
-  duration: number
+  username: string
   category: string
   relevance_score: number
   downloaded: boolean
-  file_path: string
-  file_size: number
+  filepath: string
+  filesize_bytes: number
+  duration_sec: number
   created_at: string
 }
 
 export interface LibraryStats {
   total_videos: number
+  downloaded: number
+  total_size_mb: number
   by_platform: Record<string, number>
   by_category: Record<string, number>
-  downloaded_count: number
-  pending_downloads: number
 }
 
 export interface StatusResponse {
@@ -44,8 +44,10 @@ export interface StatusResponse {
   apify_configured: boolean
   deepseek_configured: boolean
   total_videos: number
-  pending_downloads: number
+  downloaded_videos?: number
+  pending_downloads?: number
   disk_usage_pct: number
+  disk_free_gb?: number
 }
 
 export interface KeywordResponse {

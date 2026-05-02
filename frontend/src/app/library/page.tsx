@@ -25,8 +25,11 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
+  ExternalLink,
 } from "lucide-react"
 import { toast } from "sonner"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 const PLATFORM_ICONS: Record<string, React.ElementType> = {
   tiktok: Music2,
@@ -55,8 +58,8 @@ export default function LibraryPage() {
   const [stats, setStats] = useState<LibraryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState<string>("all")
-  const [platformFilter, setPlatformFilter] = useState<string>("all")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const [platformFilter, setPlatformFilter] = useState("all")
   const [downloading, setDownloading] = useState<Set<string>>(new Set())
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [downloadingAll, setDownloadingAll] = useState(false)
@@ -177,7 +180,7 @@ export default function LibraryPage() {
             <p className="text-sm text-muted-foreground/60 mb-4">
               Go to Search tab to start collecting content
             </p>
-            <Button variant="outline" onClick={() => window.location.href = "/search"}>
+            <Button variant="outline" onClick={() => (window.location.href = "/search")}>
               Go to Search
             </Button>
           </CardContent>
@@ -193,7 +196,7 @@ export default function LibraryPage() {
         <div>
           <h1 className="text-2xl font-bold">Library</h1>
           <p className="text-muted-foreground">
-            {videos.length} videos · {stats?.downloaded_count ?? 0} downloaded
+            {videos.length} videos · {stats?.downloaded ?? 0} downloaded
           </p>
         </div>
         {selectedIds.size > 0 && (
@@ -285,7 +288,7 @@ export default function LibraryPage() {
                       className="object-cover w-full h-full"
                       loading="lazy"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none"
+                        ;(e.target as HTMLImageElement).style.display = "none"
                       }}
                     />
                   ) : (
@@ -306,12 +309,12 @@ export default function LibraryPage() {
                     </Badge>
                   </div>
                   {/* Duration */}
-                  {video.duration > 0 && (
+                  {(video.duration_sec ?? 0) > 0 && (
                     <Badge
                       variant="secondary"
                       className="absolute bottom-2 right-2 text-xs"
                     >
-                      {formatDuration(video.duration)}
+                      {formatDuration(video.duration_sec)}
                     </Badge>
                   )}
                   {/* Selected indicator */}
@@ -324,12 +327,17 @@ export default function LibraryPage() {
 
                 <CardContent className="p-3 space-y-2">
                   {/* Title */}
-                  <p className="text-sm font-medium leading-tight line-clamp-2">
+                  <a
+                    href={video.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium leading-tight line-clamp-2 hover:text-primary transition-colors"
+                  >
                     {video.title || "Untitled"}
-                  </p>
-                  {/* Author */}
+                  </a>
+                  {/* Author (username) */}
                   <p className="text-xs text-muted-foreground truncate">
-                    {video.author || "Unknown"}
+                    {video.username || "Unknown"}
                   </p>
                   {/* Tags */}
                   <div className="flex items-center gap-1.5 flex-wrap">
@@ -355,13 +363,28 @@ export default function LibraryPage() {
                   {/* Action row */}
                   <div className="flex items-center justify-between pt-1">
                     {video.downloaded ? (
-                      <Badge
-                        variant="default"
-                        className="bg-green-600 text-xs gap-1"
-                      >
-                        <CheckCircle2 className="h-3 w-3" />
-                        Downloaded
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <a
+                          href={`${API_BASE}/download/file/${video.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-green-700 transition-colors"
+                        >
+                          <Download className="h-3 w-3" />
+                          View File
+                        </a>
+                        {video.url && (
+                          <a
+                            href={video.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Original
+                          </a>
+                        )}
+                      </div>
                     ) : (
                       <Button
                         variant="outline"
@@ -377,9 +400,9 @@ export default function LibraryPage() {
                         {isDownloading ? "..." : "Download"}
                       </Button>
                     )}
-                    {video.file_size > 0 && (
+                    {(video.filesize_bytes ?? 0) > 0 && (
                       <span className="text-[10px] text-muted-foreground">
-                        {(video.file_size / 1024 / 1024).toFixed(1)}MB
+                        {(video.filesize_bytes / 1024 / 1024).toFixed(1)}MB
                       </span>
                     )}
                   </div>

@@ -57,7 +57,9 @@ export const api = {
     if (query?.limit) params.set("limit", String(query.limit))
     if (query?.offset) params.set("offset", String(query.offset))
     const qs = params.toString()
-    return fetchApi(`/library/videos${qs ? `?${qs}` : ""}`)
+    return fetchApi<{ total: number; videos: VideoItem[] }>(
+      `/library/videos${qs ? `?${qs}` : ""}`
+    ).then((r) => r.videos)
   },
 
   getStats(): Promise<LibraryStats> {

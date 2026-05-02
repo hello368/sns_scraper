@@ -29,12 +29,18 @@ class TikTokCollector(PlatformCollector):
         if not url:
             return None
         author = raw.get("authorMeta", {}) or {}
+        video_meta = raw.get("videoMeta", {}) or {}
         return {
             "platform": "tiktok",
             "url": url,
             "title": (raw.get("text") or raw.get("desc", ""))[:200],
             "description": (raw.get("text") or raw.get("desc", ""))[:500],
-            "thumbnail_url": raw.get("thumbnailUrl") or raw.get("imageUrl", ""),
+            "thumbnail_url": (
+                video_meta.get("coverUrl")
+                or raw.get("coverUrl")
+                or raw.get("thumbnailUrl")
+                or raw.get("imageUrl", "")
+            ),
             "username": author.get("name", raw.get("username", "")),
             "likes": raw.get("diggCount", raw.get("likeCount", 0)),
             "comments": raw.get("commentCount", 0),

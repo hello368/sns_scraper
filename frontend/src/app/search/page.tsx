@@ -1,25 +1,23 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { api } from "@/lib/api"
-import type { SearchResponse, VideoItem } from "@/lib/types"
+import type { SearchResponse } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 import {
   Search,
   Sparkles,
   Loader2,
-  ChevronRight,
   Film,
   Music2,
   Camera,
   Globe,
+  Clock,
 } from "lucide-react"
 
 const PLATFORMS = [
@@ -29,15 +27,8 @@ const PLATFORMS = [
   { id: "youtube", label: "YouTube", icon: Film, color: "text-red-500" },
 ]
 
-const DEFAULT_KEYWORDS = "medical spa facial\nbotox injection before after\ndermal filler treatment\nlaser skin resurfacing\nmicroneedling before after"
-
-const CATEGORY_COLORS: Record<string, string> = {
-  facial: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  botox: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  filler: "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
-  laser: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
-  other: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-}
+const DEFAULT_KEYWORDS =
+  "medical spa facial\nbotox injection before after\ndermal filler treatment\nlaser skin resurfacing\nmicroneedling before after"
 
 export default function SearchPage() {
   const [keywords, setKeywords] = useState(DEFAULT_KEYWORDS)
@@ -50,7 +41,19 @@ export default function SearchPage() {
   const [searching, setSearching] = useState(false)
   const [expanding, setExpanding] = useState(false)
   const [result, setResult] = useState<SearchResponse | null>(null)
-  const [newVideos, setNewVideos] = useState<VideoItem[]>([])
+  const [expandError, setExpandError] = useState<string | null>(null)
+
+  // Progress state
+  const [startTime, setStartTime] = useState<number | null>(null)
+  const [elapsed, setElapsed] = useState("0s")
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup timer
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+    }
+  }, [])
 
   function togglePlatform(platform: string) {
     setSelectedPlatforms((prev) =>
@@ -60,8 +63,26 @@ export default function SearchPage() {
     )
   }
 
+  function getKeywordCount(): number {
+    return keywords
+      .split("\n")
+      .map((k) => k.trim())
+      .filter(Boolean).length
+  }
+
+  function getTotalOperations(): number {
+    const kwCount =
+      expandedKeywords.length > 0
+        ? expandedKeywords.length
+        : getKeywordCount()
+    const platforms = selectedPlatforms.length
+    // Each keyword × platform = 1 API call, minus dedup
+    return kwCount * platforms
+  }
+
   async function handleExpand() {
     setExpanding(true)
+    setExpandError(null)
     try {
       const seeds = keywords
         .split("\n")
@@ -75,7 +96,9 @@ export default function SearchPage() {
       setExpandedKeywords(res.keywords)
       toast.success(`${res.count} keywords expanded!`)
     } catch (err) {
-      toast.error("Failed to expand keywords: " + (err as Error).message)
+      const msg = (err as Error).message
+      setExpandError(msg)
+      toast.error("Keyword expansion failed: " + msg)
     } finally {
       setExpanding(false)
     }
@@ -86,7 +109,8 @@ export default function SearchPage() {
       .split("\n")
       .map((k) => k.trim())
       .filter(Boolean)
-    const useKeywords = expandedKeywords.length > 0 ? expandedKeywords : rawKeywords
+    const useKeywords =
+      expandedKeywords.length > 0 ? expandedKeywords : rawKeywords
 
     if (useKeywords.length === 0) {
       toast.error("Enter at least one keyword")
@@ -99,7 +123,17 @@ export default function SearchPage() {
 
     setSearching(true)
     setResult(null)
-    setNewVideos([])
+    setStartTime(Date.now())
+    setElapsed("0s")
+
+    // Start elapsed timer
+    timerRef.current = setInterval(() => {
+      if (startTime) {
+        const s = Math.floor((Date.now() - startTime) / 1000)
+        setElapsed(s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`)
+      }
+    }, 1000)
+
     try {
       const res = await api.search({
         keywords: useKeywords,
@@ -108,21 +142,34 @@ export default function SearchPage() {
         use_ai_scoring: true,
       })
       setResult(res)
-      toast.success(`Found ${res.total_found} videos (${res.new_videos} new)`)
+      const s = Math.floor((Date.now() - (startTime || Date.now())) / 1000)
+      const timeStr = s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
+      toast.success(
+        `Done in ${timeStr}: ${res.total_found} found, ${res.new_videos} new`
+      )
     } catch (err) {
       toast.error("Search failed: " + (err as Error).message)
     } finally {
       setSearching(false)
+      if (timerRef.current) clearInterval(timerRef.current)
     }
   }
 
-  // Helper to get platform icon
   function getPlatformIcon(platform: string) {
     const p = PLATFORMS.find((p) => p.id === platform)
     if (!p) return null
     const Icon = p.icon
     return <Icon className={`h-3.5 w-3.5 ${p.color}`} />
   }
+
+  const useKeywords =
+    expandedKeywords.length > 0
+      ? expandedKeywords
+      : keywords
+          .split("\n")
+          .map((k) => k.trim())
+          .filter(Boolean)
+  const totalOps = getTotalOperations()
 
   return (
     <div className="space-y-6">
@@ -151,27 +198,32 @@ export default function SearchPage() {
               variant="outline"
               className="w-full gap-2"
               onClick={handleExpand}
-              disabled={expanding}
+              disabled={expanding || getKeywordCount() === 0}
             >
               {expanding ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {expanding ? "Expanding..." : "AI Keyword Expansion"}
+              {expanding ? "Expanding with AI..." : "AI Keyword Expansion"}
             </Button>
+
+            {expandError && (
+              <p className="text-xs text-destructive">{expandError}</p>
+            )}
+
             {expandedKeywords.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {expandedKeywords.slice(0, 20).map((kw) => (
-                  <Badge key={kw} variant="secondary" className="text-xs">
-                    {kw}
-                  </Badge>
-                ))}
-                {expandedKeywords.length > 20 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{expandedKeywords.length - 20} more
-                  </Badge>
-                )}
+              <div className="mt-2">
+                <p className="text-xs text-muted-foreground mb-2">
+                  ✨ AI Expanded: {expandedKeywords.length} keywords
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {expandedKeywords.map((kw) => (
+                    <Badge key={kw} variant="secondary" className="text-xs">
+                      {kw}
+                    </Badge>
+                  ))}
+                </div>
               </div>
             )}
           </CardContent>
@@ -202,10 +254,38 @@ export default function SearchPage() {
                       onCheckedChange={() => togglePlatform(platform.id)}
                     />
                     <Icon className={`h-5 w-5 ${platform.color}`} />
-                    <span className="text-sm font-medium">{platform.label}</span>
+                    <span className="text-sm font-medium">
+                      {platform.label}
+                    </span>
                   </label>
                 )
               })}
+            </div>
+
+            {/* Search Plan Summary */}
+            <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Keywords</span>
+                <span className="font-medium">{useKeywords.length}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Platforms</span>
+                <span className="font-medium">
+                  {selectedPlatforms.length}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Expected calls</span>
+                <span className="font-medium">
+                  ~{totalOps} API calls
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Est. time</span>
+                <span className="font-medium">
+                  ~{Math.max(Math.round(totalOps * 3), 10)}s
+                </span>
+              </div>
             </div>
 
             <Separator />
@@ -220,11 +300,41 @@ export default function SearchPage() {
               ) : (
                 <Search className="h-5 w-5" />
               )}
-              {searching ? "Searching..." : "Execute Search"}
+              {searching
+                ? `Searching... ${elapsed}`
+                : "Execute Search"}
             </Button>
           </CardContent>
         </Card>
       </div>
+
+      {/* Progress Banner (visible during search) */}
+      {searching && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">
+                  Searching {useKeywords.length} keywords ×{" "}
+                  {selectedPlatforms.length} platforms
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  <Clock className="inline h-3 w-3 mr-1" />
+                  Elapsed: {elapsed} · Expected: ~
+                  {Math.max(Math.round(totalOps * 3), 10)}s
+                </p>
+              </div>
+              <Badge variant="secondary">{elapsed}</Badge>
+            </div>
+            {/* Simple progress bar animation */}
+            <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div className="h-full bg-primary rounded-full animate-pulse" 
+                   style={{ width: "60%" }} />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results */}
       {result && (
@@ -235,7 +345,7 @@ export default function SearchPage() {
               Found {result.total_found} videos across{" "}
               {result.platforms_used.length} platforms
               {result.after_dedup < result.total_found &&
-                ` (${result.total_found - result.after_dedup} duplicates removed)`}
+                ` (${result.total_found - result.after_dedup} duplicates skipped)`}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -249,7 +359,9 @@ export default function SearchPage() {
                 <p className="text-xs text-muted-foreground">After Dedup</p>
               </div>
               <div className="flex-1 rounded-lg bg-muted p-4 text-center">
-                <p className="text-2xl font-bold">{result.new_videos}</p>
+                <p className="text-2xl font-bold text-green-600">
+                  +{result.new_videos}
+                </p>
                 <p className="text-xs text-muted-foreground">New Saved</p>
               </div>
               <div className="flex-1 rounded-lg bg-muted p-4 text-center">

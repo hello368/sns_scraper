@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   XCircle,
   HardDrive,
+  ExternalLink,
 } from "lucide-react"
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -141,7 +142,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">MediSpa AI 콘텐츠 개요</p>
       </div>
 
-      {/* Stat Cards */}
+      {/* Stat Cards — API field names: total_videos, downloaded, pending_downloads */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={Film}
@@ -158,13 +159,13 @@ export default function DashboardPage() {
         <StatCard
           icon={Download}
           label="Downloaded"
-          value={stats?.downloaded_count ?? 0}
+          value={stats?.downloaded ?? 0}
           description="디스크에 저장됨"
         />
         <StatCard
           icon={Clock}
           label="Pending"
-          value={stats?.pending_downloads ?? 0}
+          value={status?.pending_downloads ?? 0}
           description="다운로드 대기 중"
         />
       </div>
@@ -277,8 +278,16 @@ export default function DashboardPage() {
               <TableBody>
                 {videos.map((v) => (
                   <TableRow key={v.id}>
-                    <TableCell className="max-w-[250px] truncate font-medium">
-                      {v.title || v.url?.split("/").pop() || "Untitled"}
+                    <TableCell className="max-w-[250px]">
+                      <a
+                        href={v.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 font-medium truncate hover:text-primary transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{v.title || v.url?.split("/").pop() || "Untitled"}</span>
+                      </a>
                     </TableCell>
                     <TableCell>
                       <Badge

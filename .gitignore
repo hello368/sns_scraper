@@ -10,6 +10,8 @@ venv/
 data/treatments/*.mp4
 data/treatments/*.webm
 data/treatments/*.mkv
+data/treatments/*.info.json
+data/treatments/*.description
 data/*.db
 data/*.db-journal
 data/metadata/

@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import json
 from fastapi import APIRouter
+from api.schemas import KeywordRequest
 
 from core.config import config, apify_configured, deepseek_configured
 from core.client import get_deepseek_client
@@ -34,11 +35,12 @@ def system_status():
 
 
 @router.post("/keywords")
-def generate_keywords(seeds: list[str] = ["medical spa", "facial", "botox", "filler"]):
+def generate_keywords(req: KeywordRequest):
     """AI 키워드 확장 생성"""
+    seeds = req.seeds
     client = get_deepseek_client()
     if not client:
-        return {"keywords": seeds, "method": "seed"}
+        return {"keywords": seeds, "count": len(seeds), "method": "seed"}
 
     try:
         resp = client.chat.completions.create(
@@ -57,6 +59,6 @@ def generate_keywords(seeds: list[str] = ["medical spa", "facial", "botox", "fil
         expanded = data.get("queries", data.get("keywords", seeds))
         # 중복 제거 + 순서 유지
         all_kw = list(dict.fromkeys(seeds + expanded))
-        return {"keywords": all_kw, "method": "ai"}
+        return {"keywords": all_kw, "count": len(all_kw), "method": "ai"}
     except Exception as e:
         return {"keywords": seeds, "method": "seed", "error": str(e)}
