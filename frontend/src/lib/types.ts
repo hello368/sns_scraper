@@ -15,6 +15,17 @@ export interface SearchResponse {
   platforms_used: string[]
 }
 
+export interface SearchProgress {
+  task_id: string
+  status: string
+  total_steps: number
+  completed_steps: number
+  current_platform: string
+  current_keyword: string
+  results_so_far: number
+  error: string | null
+}
+
 export interface VideoItem {
   id: string
   url: string

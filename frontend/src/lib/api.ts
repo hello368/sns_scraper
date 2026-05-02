@@ -1,6 +1,7 @@
 import type {
   SearchRequest,
   SearchResponse,
+  SearchProgress,
   VideoItem,
   LibraryStats,
   StatusResponse,
@@ -39,6 +40,10 @@ export const api = {
       method: "POST",
       body: JSON.stringify(req),
     })
+  },
+
+  getSearchProgress(taskId: string): Promise<SearchProgress> {
+    return fetchApi(`/search/progress/${taskId}`)
   },
 
   expandKeywords(seeds: string[]): Promise<KeywordResponse> {

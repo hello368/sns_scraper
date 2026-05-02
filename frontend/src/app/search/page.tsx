@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react"
 import { api } from "@/lib/api"
-import type { SearchResponse } from "@/lib/types"
+import type { SearchResponse, SearchProgress } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -49,6 +49,7 @@ export default function SearchPage() {
   const [searching, setSearching] = useState(false)
   const [expanding, setExpanding] = useState(false)
   const [result, setResult] = useState<SearchResponse | null>(null)
+  const [progress, setProgress] = useState<SearchProgress | null>(null)
   const [expandError, setExpandError] = useState<string | null>(null)
 
   // Progress state
@@ -131,18 +132,19 @@ export default function SearchPage() {
 
     setSearching(true)
     setResult(null)
-    setStartTime(Date.now())
+    setProgress(null)
+    const t0 = Date.now()
+    setStartTime(t0)
     setElapsed("0s")
 
     // Start elapsed timer
     timerRef.current = setInterval(() => {
-      if (startTime) {
-        const s = Math.floor((Date.now() - startTime) / 1000)
-        setElapsed(s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`)
-      }
+      const s = Math.floor((Date.now() - t0) / 1000)
+      setElapsed(s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`)
     }, 1000)
 
     try {
+      // 1) Start search (returns immediately with task_id)
       const res = await api.search({
         keywords: useKeywords,
         platforms: selectedPlatforms,
@@ -150,12 +152,28 @@ export default function SearchPage() {
         region: selectedRegion,
         use_ai_scoring: true,
       })
-      setResult(res)
-      const s = Math.floor((Date.now() - (startTime || Date.now())) / 1000)
-      const timeStr = s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
-      toast.success(
-        `Done in ${timeStr}: ${res.total_found} found, ${res.new_videos} new`
-      )
+      const taskId = res.task_id
+
+      // 2) Poll progress until done
+      let done = false
+      while (!done) {
+        await new Promise((r) => setTimeout(r, 1500))
+        try {
+          const prog = await api.getSearchProgress(taskId)
+          setProgress(prog)
+          if (prog.status === "completed") {
+            done = true
+            const s = Math.floor((Date.now() - t0) / 1000)
+            const timeStr = s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
+            toast.success(`Search completed in ${timeStr}`)
+          } else if (prog.status === "failed") {
+            done = true
+            toast.error("Search failed: " + (prog.error || "Unknown error"))
+          }
+        } catch {
+          // progress endpoint might not be ready yet, just retry
+        }
+      }
     } catch (err) {
       toast.error("Search failed: " + (err as Error).message)
     } finally {
@@ -352,19 +370,36 @@ export default function SearchPage() {
                   Searching {useKeywords.length} keywords ×{" "}
                   {selectedPlatforms.length} platforms in {REGIONS.find(r => r.id === selectedRegion)?.label || selectedRegion}
                 </p>
-                <p className="text-xs text-muted-foreground">
+                {progress && progress.current_keyword && (
+                  <p className="text-xs text-primary font-mono mt-0.5">
+                    🔍 {progress.current_platform}/{progress.current_keyword}
+                    {" · "}{progress.results_so_far} found
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-0.5">
                   <Clock className="inline h-3 w-3 mr-1" />
-                  Elapsed: {elapsed} · Expected: ~
-                  {Math.max(Math.round(totalOps * 3), 10)}s
+                  Elapsed: {elapsed}
+                  {progress && progress.total_steps > 0 && (
+                    <> · Step {progress.completed_steps}/{progress.total_steps}</>
+                  )}
                 </p>
               </div>
               <Badge variant="secondary">{elapsed}</Badge>
             </div>
-            {/* Simple progress bar animation */}
-            <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full animate-pulse" 
-                   style={{ width: "60%" }} />
-            </div>
+            {/* Real progress bar */}
+            {progress && progress.total_steps > 0 && (
+              <div className="mt-3 h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-500"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (progress.completed_steps / progress.total_steps) * 100
+                    )}%`,
+                  }}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

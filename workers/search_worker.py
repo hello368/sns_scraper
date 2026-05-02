@@ -56,6 +56,7 @@ class SearchWorker:
             platforms: list[str] | None = None,
             max_per_keyword: int | None = None,
             region: str = "US",
+            task_id: str = "",
             dedup_hours: int = 24) -> dict:
         """전체 검색 파이프라인 실행 (동기)
 
@@ -67,6 +68,7 @@ class SearchWorker:
         max_per_keyword = max_per_keyword or config.max_results_per_keyword
         self._dedup_hours = dedup_hours
         self._target_region = region
+        self._task_id = task_id  # 진행 상황 추적용
 
         # 1. 키워드 확장 (지역 반영)
         all_keywords = self._expand_keywords(keywords, region)
@@ -152,20 +154,38 @@ class SearchWorker:
     def _search_all_platforms(
         self, keywords: list[str], platforms: list[str], limit: int
     ) -> list[dict]:
-        """모든 플랫폼 × 모든 키워드 검색 (동기, 순차)"""
+        """모든 플랫폼 × 모든 키워드 검색 (동기, 순차) + 진행 상황 업데이트"""
         if not self._apify:
             logger.error("Apify 미설정, 검색 불가")
             return []
 
         results = []
+        total = len(keywords) * len(platforms)
+        step = 0
         for keyword in keywords:
             for platform in platforms:
+                step += 1
+                # 진행 상황 업데이트
+                if hasattr(self, '_task_id') and self._task_id:
+                    from workers.progress import update_progress
+                    update_progress(
+                        self._task_id,
+                        current_platform=platform,
+                        current_keyword=keyword[:40],
+                        completed_steps=step,
+                        results_so_far=len(results),
+                    )
+
                 if self._repo.already_searched(keyword, platform, self._dedup_hours):
                     logger.info(f"  ⏭️ 이미 검색됨: {platform}/{keyword[:30]}")
                     continue
                 try:
                     items = self._search_one(platform, keyword, limit)
                     results.extend(items)
+                    # 결과 업데이트
+                    if hasattr(self, '_task_id') and self._task_id:
+                        from workers.progress import update_progress
+                        update_progress(self._task_id, results_so_far=len(results))
                     time.sleep(1)  # rate limit
                 except Exception as e:
                     logger.error(f"검색 실패 {platform}/{keyword[:30]}: {e}")
