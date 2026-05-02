@@ -47,10 +47,17 @@ class SearchWorker:
 
     def run(self, keywords: list[str],
             platforms: list[str] | None = None,
-            max_per_keyword: int | None = None) -> dict:
-        """전체 검색 파이프라인 실행 (동기)"""
+            max_per_keyword: int | None = None,
+            dedup_hours: int = 24) -> dict:
+        """전체 검색 파이프라인 실행 (동기)
+
+        Args:
+            dedup_hours: 이미 검색된 키워드 재검색 방지 윈도우 (시간).
+                         6=6시간 내 검색된 것만 스킵, 0=항상 새로 검색.
+        """
         platforms = platforms or list(config.apify_actors.keys())
         max_per_keyword = max_per_keyword or config.max_results_per_keyword
+        self._dedup_hours = dedup_hours
 
         # 1. 키워드 확장
         all_keywords = self._expand_keywords(keywords)
@@ -133,7 +140,7 @@ class SearchWorker:
         results = []
         for keyword in keywords:
             for platform in platforms:
-                if self._repo.already_searched(keyword, platform):
+                if self._repo.already_searched(keyword, platform, self._dedup_hours):
                     logger.info(f"  ⏭️ 이미 검색됨: {platform}/{keyword[:30]}")
                     continue
                 try:
