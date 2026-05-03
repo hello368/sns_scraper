@@ -15,7 +15,7 @@ def create_progress(task_id: str, total_steps: int) -> dict:
     with _lock:
         p = {
             "task_id": task_id,
-            "status": "running",  # running / completed / failed
+            "status": "running",  # running / completed / failed / stopped
             "total_steps": total_steps,
             "completed_steps": 0,
             "current_platform": "",
@@ -43,13 +43,29 @@ def get_progress(task_id: str) -> Optional[dict]:
         return p.copy() if p else None
 
 
-def complete_progress(task_id: str, error: Optional[str] = None):
+def complete_progress(task_id: str, error: Optional[str] = None,
+                       status: str = None):
     """완료 처리"""
     with _lock:
         p = _search_progress.get(task_id)
         if p:
-            p["status"] = "failed" if error else "completed"
+            p["status"] = status or ("failed" if error else "completed")
             p["error"] = error
+
+
+def request_stop(task_id: str):
+    """검색 중단 요청"""
+    with _lock:
+        p = _search_progress.get(task_id)
+        if p:
+            p["stop_requested"] = True
+
+
+def should_stop(task_id: str) -> bool:
+    """중단 요청이 있는지 확인"""
+    with _lock:
+        p = _search_progress.get(task_id)
+        return bool(p and p.get("stop_requested"))
 
 
 def cleanup_progress(task_id: str):

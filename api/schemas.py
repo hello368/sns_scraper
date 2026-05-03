@@ -19,6 +19,23 @@ class SearchRequest(BaseModel):
     max_per_keyword: int = Field(default=20, ge=1, le=100)
     region: str = Field(default="US", pattern=r"^(US|JP|KR|EU)$")
     use_ai_scoring: bool = True
+    # ─── 신규: 기간 제한 + engagement 필터 ──────────────
+    max_days: Optional[int] = Field(
+        default=30, ge=1, le=365,
+        description="검색할 최대 기간 (일). 30 = 최근 30일 내 영상만.",
+    )
+    min_likes: Optional[int] = Field(
+        default=None, ge=0,
+        description="전역 최소 좋아요 오버라이드 (None = 플랫폼 기본값 사용)",
+    )
+    min_comments: Optional[int] = Field(
+        default=None, ge=0,
+        description="전역 최소 댓글 오버라이드",
+    )
+    min_views: Optional[int] = Field(
+        default=None, ge=0,
+        description="전역 최소 조회수 오버라이드",
+    )
 
 
 class SearchResponse(BaseModel):

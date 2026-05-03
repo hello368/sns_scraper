@@ -21,6 +21,9 @@ async def lifespan(app: FastAPI):
     """서버 시작/종료 시 실행"""
     logger.info("🚀 MediSpa AI 서버 시작...")
     init_db()
+    # 시드: 첫 실행 시 admin 계정 생성
+    from api.routes.auth import seed_admin
+    seed_admin()
     logger.info("✅ DB 초기화 완료")
     yield
     logger.info("👋 서버 종료")
@@ -73,11 +76,13 @@ from api.routes.search import router as search_router
 from api.routes.download import router as download_router
 from api.routes.library import router as library_router
 from api.routes.system import router as system_router
+from api.routes.auth import router as auth_router
 
 app.include_router(search_router)
 app.include_router(download_router)
 app.include_router(library_router)
 app.include_router(system_router)
+app.include_router(auth_router)
 
 
 @app.get("/")

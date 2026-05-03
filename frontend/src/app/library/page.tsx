@@ -357,15 +357,33 @@ export default function LibraryPage() {
                 </div>
 
                 <CardContent className="p-3 space-y-2">
-                  {/* Title */}
-                  <a
-                    href={video.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-medium leading-tight line-clamp-2 hover:text-primary transition-colors"
-                  >
-                    {video.title || "Untitled"}
-                  </a>
+                  {/* Title + Engagement right next to it */}
+                  <div className="flex items-start gap-2">
+                    <a
+                      href={video.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 text-sm font-medium leading-tight line-clamp-2 hover:text-primary transition-colors min-w-0"
+                    >
+                      {video.title || "Untitled"}
+                    </a>
+                    {/* 🔥 Engagement badges next to title */}
+                    {(video.likes ?? 0) > 0 && (
+                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5" title="Likes">
+                        ❤ {(video.likes >= 1000 ? (video.likes / 1000).toFixed(1) + "K" : video.likes)}
+                      </span>
+                    )}
+                    {(video.views ?? 0) > 0 && (
+                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5" title="Views">
+                        👁 {(video.views >= 1000 ? (video.views / 1000).toFixed(1) + "K" : video.views)}
+                      </span>
+                    )}
+                    {(video.comments ?? 0) > 0 && (
+                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5" title="Comments">
+                        💬 {(video.comments >= 1000 ? (video.comments / 1000).toFixed(1) + "K" : video.comments)}
+                      </span>
+                    )}
+                  </div>
                   {/* Author (username) */}
                   <p className="text-xs text-muted-foreground truncate">
                     {video.username || "Unknown"}
@@ -390,14 +408,6 @@ export default function LibraryPage() {
                         }`}
                       >
                         {REGION_NAMES[video.region] || video.region}
-                      </Badge>
-                    )}
-                    {video.relevance_score != null && (
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] px-1.5 py-0"
-                      >
-                        {video.relevance_score}/10
                       </Badge>
                     )}
                   </div>

@@ -22,6 +22,21 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+class User(Base):
+    """사용자 계정 — 로그인 + 권한 관리"""
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, default=_new_id)
+    username = Column(String(80), unique=True, nullable=False, index=True)
+    email = Column(String(200), unique=True, nullable=False)
+    hashed_password = Column(String(200), nullable=False)
+    role = Column(String(20), default="user")          # admin / user
+    is_active = Column(Integer, default=1)
+    created_by = Column(String(80), default="system")
+    created_at = Column(DateTime, default=_utcnow)
+    last_login = Column(DateTime)
+
+
 class SearchRecord(Base):
     """검색 이력 — 중복 검색 방지 + 비용 추적"""
     __tablename__ = "searches"
@@ -57,6 +72,9 @@ class Video(Base):
     filesize_bytes = Column(Integer, default=0)
     duration_sec = Column(Integer, default=0)
     region = Column(String(10), default="US", index=True) # US, JP, KR, EU
+    likes = Column(Integer, default=0)                   # 좋아요 수 (engagement)
+    comments = Column(Integer, default=0)                # 댓글 수 (engagement)
+    views = Column(Integer, default=0)                   # 조회 수 (engagement)
     relevance_score = Column(Float, default=5.0)
     tags = Column(Text)                                  # JSON array
     downloaded = Column(Integer, default=0)              # 0: no, 1: yes

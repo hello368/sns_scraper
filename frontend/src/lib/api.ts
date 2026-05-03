@@ -12,13 +12,23 @@ import type {
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
+let _authToken = ""
+
+export function setAuthToken(token: string) {
+  _authToken = token
+}
+
 async function fetchApi<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
   const url = `${BASE_URL}${path}`
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (_authToken) {
+    headers["Authorization"] = `Bearer ${_authToken}`
+  }
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
+    headers: { ...headers, ...options?.headers },
     ...options,
   })
   if (!res.ok) {
@@ -29,6 +39,50 @@ async function fetchApi<T>(
 }
 
 export const api = {
+  // ─── Auth Token ────────────────────────────
+  setToken(token: string) {
+    _authToken = token
+  },
+
+  // ─── Auth ──────────────────────────────────
+  login(username: string, password: string): Promise<{ token: string; user: any }> {
+    return fetchApi("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    })
+  },
+
+  register(username: string, password: string, email: string): Promise<{ token: string; user: any }> {
+    return fetchApi("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ username, password, email }),
+    })
+  },
+
+  getMe(): Promise<any> {
+    return fetchApi("/auth/me")
+  },
+
+  // ─── Admin ─────────────────────────────────
+  getUsers(): Promise<any[]> {
+    return fetchApi("/auth/users")
+  },
+
+  createUser(username: string, password: string, email: string, role: string = "user"): Promise<any> {
+    return fetchApi("/auth/users", {
+      method: "POST",
+      body: JSON.stringify({ username, password, email, role }),
+    })
+  },
+
+  deleteUser(userId: string): Promise<any> {
+    return fetchApi(`/auth/users/${userId}`, { method: "DELETE" })
+  },
+
+  toggleUser(userId: string): Promise<any> {
+    return fetchApi(`/auth/users/${userId}/toggle`, { method: "PATCH" })
+  },
+
   // ─── Status ─────────────────────────────────
   getStatus(): Promise<StatusResponse> {
     return fetchApi("/status")
@@ -44,6 +98,10 @@ export const api = {
 
   getSearchProgress(taskId: string): Promise<SearchProgress> {
     return fetchApi(`/search/progress/${taskId}`)
+  },
+
+  stopSearch(taskId: string): Promise<{ task_id: string; status: string; message: string }> {
+    return fetchApi(`/search/stop/${taskId}`, { method: "POST" })
   },
 
   expandKeywords(seeds: string[]): Promise<KeywordResponse> {

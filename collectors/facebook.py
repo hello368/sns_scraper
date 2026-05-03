@@ -40,5 +40,16 @@ class FacebookCollector(PlatformCollector):
             "username": raw.get("username") or raw.get("pageName", "") or raw.get("ownerFullName", ""),
             "likes": raw.get("likesCount", 0),
             "comments": raw.get("commentsCount", 0),
+            "views": raw.get("viewCount", raw.get("views", 0)),
             "created_at": raw.get("createdAt") or raw.get("timestamp", ""),
         }
+
+    # ─── Engagement thresholds (FB = 낮은 편) ──────
+    def min_likes(self) -> int:
+        return 5
+
+    def min_comments(self) -> int:
+        return 2
+
+    def min_views(self) -> int:
+        return 200

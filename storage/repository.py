@@ -68,12 +68,14 @@ class Repository:
                    description: str = "", thumbnail_url: str = "",
                    username: str = "", category: str = "other",
                    region: str = "US",
+                   likes: int = 0, comments: int = 0, views: int = 0,
                    relevance_score: float = 5.0, tags: list = None) -> Video:
         vid = video_id_from_url(url)
         video = Video(
             id=vid, url=url, platform=platform, title=title[:500],
             description=description, thumbnail_url=thumbnail_url,
             username=username, category=category, region=region,
+            likes=likes, comments=comments, views=views,
             relevance_score=relevance_score,
             tags=json.dumps(tags or []),
         )

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { api } from "@/lib/api"
 import type { SearchResponse, SearchProgress } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Slider } from "@/components/ui/slider"
 import { toast } from "sonner"
 import {
   Search,
@@ -18,6 +19,12 @@ import {
   Camera,
   Globe,
   Clock,
+  RotateCcw,
+  RefreshCw,
+  Square,
+  Heart,
+  MessageSquare,
+  Eye,
 } from "lucide-react"
 
 const PLATFORMS = [
@@ -37,6 +44,48 @@ const REGIONS = [
 const DEFAULT_KEYWORDS =
   "medical spa facial\nbotox injection before after\ndermal filler treatment\nlaser skin resurfacing\nmicroneedling before after"
 
+// ─── localStorage helpers for persistent task tracking ───
+
+const STORAGE_KEY = "medispa_active_task"
+
+interface SavedTask {
+  task_id: string
+  keywords: string[]
+  platforms: string[]
+  region: string
+  start_time: number
+}
+
+function saveTask(task: SavedTask) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(task))
+  } catch { /* ignore quota errors */ }
+}
+
+function clearTask() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch { /* ignore */ }
+}
+
+function loadTask(): SavedTask | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+// ─── Helpers ───
+
+function formatElapsed(ms: number): string {
+  if (!ms) return "0s"
+  const s = Math.floor(ms / 1000)
+  return s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
+}
+
 export default function SearchPage() {
   const [keywords, setKeywords] = useState(DEFAULT_KEYWORDS)
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([
@@ -52,10 +101,20 @@ export default function SearchPage() {
   const [progress, setProgress] = useState<SearchProgress | null>(null)
   const [expandError, setExpandError] = useState<string | null>(null)
 
+  // ─── 신규 검색 옵션 ────────────────────────────
+  const [maxDays, setMaxDays] = useState(30)               // 기간 (일)
+  const [minLikes, setMinLikes] = useState(0)              // 전역 좋아요 오버라이드
+  const [minComments, setMinComments] = useState(0)        // 전역 댓글 오버라이드
+  const [minViews, setMinViews] = useState(0)              // 전역 조회수 오버라이드
+
   // Progress state
+  const [taskId, setTaskId] = useState<string | null>(null)
   const [startTime, setStartTime] = useState<number | null>(null)
   const [elapsed, setElapsed] = useState("0s")
+  const [pausedTask, setPausedTask] = useState<SavedTask | null>(null)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const pollingRef = useRef(false)
+  const [stopping, setStopping] = useState(false)
 
   // Cleanup timer
   useEffect(() => {
@@ -64,12 +123,171 @@ export default function SearchPage() {
     }
   }, [])
 
-  function togglePlatform(platform: string) {
-    setSelectedPlatforms((prev) =>
-      prev.includes(platform)
-        ? prev.filter((p) => p !== platform)
-        : [...prev, platform]
-    )
+  // ─── On mount: check for previously saved active task ───
+  useEffect(() => {
+    const saved = loadTask()
+    if (saved) {
+      setPausedTask(saved)
+    }
+  }, [])
+
+  // ─── Resume a saved task ───
+  const resumeTask = useCallback(async () => {
+    const saved = loadTask()
+    if (!saved) return
+
+    // Remove the paused banner immediately
+    setPausedTask(null)
+
+    // Restore UI state
+    const t0 = saved.start_time
+    setStartTime(t0)
+    setElapsed(formatElapsed(Date.now() - t0))
+    setSearching(true)
+    setTaskId(saved.task_id)
+
+    toast.info(`Resuming search: ${saved.keywords.length} keywords in ${saved.region}`)
+
+    // Start elapsed timer
+    timerRef.current = setInterval(() => {
+      setElapsed(formatElapsed(Date.now() - t0))
+    }, 1000)
+
+    // Start polling
+    await pollProgress(saved.task_id, t0)
+  }, [])
+
+  // ─── Dismiss a saved task without resuming ───
+  function dismissSavedTask() {
+    clearTask()
+    setPausedTask(null)
+    toast.info("Saved search dismissed")
+  }
+
+  // ─── Poll progress until completion ───
+  async function pollProgress(taskId: string, t0: number) {
+    if (pollingRef.current) return
+    pollingRef.current = true
+
+    let done = false
+    while (!done) {
+      await new Promise((r) => setTimeout(r, 1500))
+      try {
+        const prog = await api.getSearchProgress(taskId)
+        setProgress(prog)
+        setElapsed(formatElapsed(Date.now() - t0))
+
+        if (prog.status === "completed") {
+          done = true
+          clearTask()
+          const timeStr = formatElapsed(Date.now() - t0)
+          toast.success(`Search completed in ${timeStr}`)
+          setStopping(false)
+        } else if (prog.status === "failed") {
+          done = true
+          clearTask()
+          toast.error("Search failed: " + (prog.error || "Unknown error"))
+          setStopping(false)
+        } else if (prog.status === "stopped") {
+          done = true
+          clearTask()
+          toast.info("Search stopped — partial results saved")
+          setStopping(false)
+        }
+      } catch {
+        // progress endpoint might not be ready yet
+      }
+    }
+
+    pollingRef.current = false
+    setSearching(false)
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  // ─── 🛑 Stop current search ───
+  async function handleStop() {
+    if (!taskId) return
+    setStopping(true)
+    try {
+      await api.stopSearch(taskId)
+      toast.info("Stop requested — collecting partial results...")
+    } catch (err) {
+      toast.error("Failed to stop: " + (err as Error).message)
+      setStopping(false)
+    }
+  }
+
+  // ─── Start a new search ───
+  async function handleSearch() {
+    const rawKeywords = keywords
+      .split("\n")
+      .map((k) => k.trim())
+      .filter(Boolean)
+    const useKeywords =
+      expandedKeywords.length > 0 ? expandedKeywords : rawKeywords
+
+    if (useKeywords.length === 0) {
+      toast.error("Enter at least one keyword")
+      return
+    }
+    if (selectedPlatforms.length === 0) {
+      toast.error("Select at least one platform")
+      return
+    }
+
+    setSearching(true)
+    setResult(null)
+    setProgress(null)
+    setPausedTask(null)
+    setStopping(false)
+    const t0 = Date.now()
+    setStartTime(t0)
+    setElapsed("0s")
+
+    // Start elapsed timer
+    timerRef.current = setInterval(() => {
+      setElapsed(formatElapsed(Date.now() - t0))
+    }, 1000)
+
+    try {
+      const res = await api.search({
+        keywords: useKeywords,
+        platforms: selectedPlatforms,
+        max_per_keyword: 20,
+        region: selectedRegion,
+        use_ai_scoring: true,
+        // ─── 신규 파라미터 ──────────────
+        max_days: maxDays,
+        min_likes: minLikes > 0 ? minLikes : null,
+        min_comments: minComments > 0 ? minComments : null,
+        min_views: minViews > 0 ? minViews : null,
+      })
+      const newTaskId = res.task_id
+      setTaskId(newTaskId)
+
+      // 💾 Persist task info so it survives refresh
+      saveTask({
+        task_id: newTaskId,
+        keywords: useKeywords,
+        platforms: selectedPlatforms,
+        region: selectedRegion,
+        start_time: t0,
+      })
+
+      // Start polling
+      await pollProgress(newTaskId, t0)
+    } catch (err) {
+      clearTask()
+      toast.error("Search failed: " + (err as Error).message)
+      setSearching(false)
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
   }
 
   function getKeywordCount(): number {
@@ -85,7 +303,6 @@ export default function SearchPage() {
         ? expandedKeywords.length
         : getKeywordCount()
     const platforms = selectedPlatforms.length
-    // Each keyword × platform = 1 API call, minus dedup
     return kwCount * platforms
   }
 
@@ -113,73 +330,12 @@ export default function SearchPage() {
     }
   }
 
-  async function handleSearch() {
-    const rawKeywords = keywords
-      .split("\n")
-      .map((k) => k.trim())
-      .filter(Boolean)
-    const useKeywords =
-      expandedKeywords.length > 0 ? expandedKeywords : rawKeywords
-
-    if (useKeywords.length === 0) {
-      toast.error("Enter at least one keyword")
-      return
-    }
-    if (selectedPlatforms.length === 0) {
-      toast.error("Select at least one platform")
-      return
-    }
-
-    setSearching(true)
-    setResult(null)
-    setProgress(null)
-    const t0 = Date.now()
-    setStartTime(t0)
-    setElapsed("0s")
-
-    // Start elapsed timer
-    timerRef.current = setInterval(() => {
-      const s = Math.floor((Date.now() - t0) / 1000)
-      setElapsed(s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`)
-    }, 1000)
-
-    try {
-      // 1) Start search (returns immediately with task_id)
-      const res = await api.search({
-        keywords: useKeywords,
-        platforms: selectedPlatforms,
-        max_per_keyword: 20,
-        region: selectedRegion,
-        use_ai_scoring: true,
-      })
-      const taskId = res.task_id
-
-      // 2) Poll progress until done
-      let done = false
-      while (!done) {
-        await new Promise((r) => setTimeout(r, 1500))
-        try {
-          const prog = await api.getSearchProgress(taskId)
-          setProgress(prog)
-          if (prog.status === "completed") {
-            done = true
-            const s = Math.floor((Date.now() - t0) / 1000)
-            const timeStr = s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`
-            toast.success(`Search completed in ${timeStr}`)
-          } else if (prog.status === "failed") {
-            done = true
-            toast.error("Search failed: " + (prog.error || "Unknown error"))
-          }
-        } catch {
-          // progress endpoint might not be ready yet, just retry
-        }
-      }
-    } catch (err) {
-      toast.error("Search failed: " + (err as Error).message)
-    } finally {
-      setSearching(false)
-      if (timerRef.current) clearInterval(timerRef.current)
-    }
+  function togglePlatform(platform: string) {
+    setSelectedPlatforms((prev) =>
+      prev.includes(platform)
+        ? prev.filter((p) => p !== platform)
+        : [...prev, platform]
+    )
   }
 
   function getPlatformIcon(platform: string) {
@@ -206,6 +362,33 @@ export default function SearchPage() {
           소셜미디어에서 의료 스파 트리트먼트 영상 검색
         </p>
       </div>
+
+      {/* 🔔 Resume banner — shown when a saved task exists from before refresh */}
+      {pausedTask && (
+        <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="py-3 flex items-center gap-3">
+            <RefreshCw className="h-5 w-5 text-amber-500" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">
+                ⏳ Search in progress before refresh
+              </p>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {pausedTask.keywords.length} keywords · {pausedTask.platforms.length} platforms · {pausedTask.region}
+                {" · started "}{formatElapsed(Date.now() - pausedTask.start_time)} ago
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={dismissSavedTask}>
+                Dismiss
+              </Button>
+              <Button size="sm" onClick={resumeTask}>
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                Resume
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Keywords Input */}
@@ -256,7 +439,7 @@ export default function SearchPage() {
           </CardContent>
         </Card>
 
-        {/* Platforms + Execute */}
+        {/* Platforms + Filters */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Platforms</CardTitle>
@@ -309,6 +492,102 @@ export default function SearchPage() {
               </div>
             </div>
 
+            {/* ── 📅 검색 기간 ── */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground">
+                  <Clock className="inline h-3 w-3 mr-1" />
+                  Search Period
+                </p>
+                <span className="text-xs font-mono text-primary">
+                  {maxDays === 365 ? "All time" : `Last ${maxDays} days`}
+                </span>
+              </div>
+              <Slider
+                value={[maxDays]}
+                onValueChange={([v]) => setMaxDays(v)}
+                min={1}
+                max={365}
+                step={1}
+                className="w-full"
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>1d</span>
+                <span>90d</span>
+                <span>180d</span>
+                <span>365d</span>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* ── 📊 Engagement 필터 ── */}
+            <div className="space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground">
+                <Heart className="inline h-3 w-3 mr-1 text-red-400" />
+                Engagement Thresholds (0 = platform default)
+              </p>
+
+              {/* Min likes */}
+              <div className="flex items-center gap-2">
+                <Heart className="h-3.5 w-3.5 text-red-400 shrink-0" />
+                <div className="flex-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Min Likes</span>
+                    <span className="font-mono font-medium">{minLikes > 0 ? minLikes : "──"}</span>
+                  </div>
+                  <Slider
+                    value={[minLikes]}
+                    onValueChange={([v]) => setMinLikes(v)}
+                    min={0}
+                    max={500}
+                    step={10}
+                    className="w-full mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Min comments */}
+              <div className="flex items-center gap-2">
+                <MessageSquare className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                <div className="flex-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Min Comments</span>
+                    <span className="font-mono font-medium">{minComments > 0 ? minComments : "──"}</span>
+                  </div>
+                  <Slider
+                    value={[minComments]}
+                    onValueChange={([v]) => setMinComments(v)}
+                    min={0}
+                    max={50}
+                    step={1}
+                    className="w-full mt-1"
+                  />
+                </div>
+              </div>
+
+              {/* Min views */}
+              <div className="flex items-center gap-2">
+                <Eye className="h-3.5 w-3.5 text-green-400 shrink-0" />
+                <div className="flex-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Min Views</span>
+                    <span className="font-mono font-medium">{minViews > 0 ? minViews : "──"}</span>
+                  </div>
+                  <Slider
+                    value={[minViews]}
+                    onValueChange={([v]) => setMinViews(v)}
+                    min={0}
+                    max={10000}
+                    step={100}
+                    className="w-full mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Search Plan Summary */}
             <div className="rounded-lg bg-muted/50 p-3 space-y-1">
               <div className="flex justify-between text-xs">
@@ -326,6 +605,10 @@ export default function SearchPage() {
                 <span className="font-medium">{REGIONS.find(r => r.id === selectedRegion)?.label || selectedRegion}</span>
               </div>
               <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Period</span>
+                <span className="font-medium">{maxDays === 365 ? "All" : `${maxDays}d`}</span>
+              </div>
+              <div className="flex justify-between text-xs">
                 <span className="text-muted-foreground">Expected calls</span>
                 <span className="font-medium">
                   ~{totalOps} API calls
@@ -341,25 +624,37 @@ export default function SearchPage() {
 
             <Separator />
 
-            <Button
-              className="w-full gap-2 text-base py-6"
-              onClick={handleSearch}
-              disabled={searching}
-            >
-              {searching ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
+            {/* ── Execute / Stop 버튼 ── */}
+            {searching ? (
+              <Button
+                className="w-full gap-2 text-base py-6"
+                variant="destructive"
+                onClick={handleStop}
+                disabled={stopping}
+              >
+                {stopping ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Square className="h-5 w-5" />
+                )}
+                {stopping
+                  ? "Stopping..."
+                  : `Stop Search ${elapsed}`}
+              </Button>
+            ) : (
+              <Button
+                className="w-full gap-2 text-base py-6"
+                onClick={handleSearch}
+              >
                 <Search className="h-5 w-5" />
-              )}
-              {searching
-                ? `Searching... ${elapsed}`
-                : "Execute Search"}
-            </Button>
+                Execute Search
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Progress Banner (visible during search) */}
+      {/* Progress Banner (visible during search — survives refresh!) */}
       {searching && (
         <Card className="border-primary/30 bg-primary/5">
           <CardContent className="py-4">
@@ -399,6 +694,12 @@ export default function SearchPage() {
                   }}
                 />
               </div>
+            )}
+            {/* Task ID shown for debugging */}
+            {taskId && (
+              <p className="text-[10px] text-muted-foreground/50 mt-2 text-right">
+                Task: {taskId}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -448,6 +749,11 @@ export default function SearchPage() {
                   </Badge>
                 ))}
               </div>
+            )}
+            {result.stopped && (
+              <p className="text-xs text-amber-600 mt-2">
+                🛑 Search was stopped. Partial results saved to library.
+              </p>
             )}
           </CardContent>
         </Card>

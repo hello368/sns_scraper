@@ -9,7 +9,9 @@ from fastapi import APIRouter, HTTPException
 from api.schemas import SearchRequest, SearchResponse
 from core.errors import ApifyAuthError, ApifyQuotaError, ERROR_TO_STATUS
 from workers.search_worker import SearchWorker
-from workers.progress import create_progress, get_progress, complete_progress
+from workers.progress import (
+    create_progress, get_progress, complete_progress, request_stop,
+)
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -37,6 +39,11 @@ def search(req: SearchRequest):
                 max_per_keyword=max_per_keyword,
                 region=region,
                 task_id=task_id,
+                # ─── 신규 파라미터 ──────────────
+                max_days=req.max_days,
+                min_likes=req.min_likes,
+                min_comments=req.min_comments,
+                min_views=req.min_views,
             )
             complete_progress(task_id)
         except Exception as e:
@@ -62,3 +69,20 @@ def search_progress(task_id: str):
     if not p:
         raise HTTPException(404, f"Task {task_id} not found")
     return p
+
+
+@router.post("/stop/{task_id}")
+def stop_search(task_id: str):
+    """검색 중단 요청 — 중단 시점까지 수집된 결과는 DB에 저장됨"""
+    p = get_progress(task_id)
+    if not p:
+        raise HTTPException(404, f"Task {task_id} not found")
+    if p["status"] != "running":
+        raise HTTPException(400, f"Task is not running (status={p['status']})")
+
+    request_stop(task_id)
+    return {
+        "task_id": task_id,
+        "status": "stopping",
+        "message": "Stop requested. Collected results will be saved.",
+    }

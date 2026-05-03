@@ -1,5 +1,6 @@
 """
 TikTok Collector — 키워드 검색, 영상 메타데이터 포함
+TikTok은 모든 플랫폼 중 engagement가 가장 높음
 """
 from __future__ import annotations
 from typing import Optional
@@ -30,20 +31,29 @@ class TikTokCollector(PlatformCollector):
             return None
         author = raw.get("authorMeta", {}) or {}
         video_meta = raw.get("videoMeta", {}) or {}
+        slideshow_links = raw.get("slideshowImageLinks") or []
+
+        # Thumbnail: 여러 fallback 시도
+        thumbnail = (
+            video_meta.get("coverUrl")
+            or raw.get("coverUrl")
+            or raw.get("thumbnailUrl")
+            or raw.get("imageUrl")
+            or (slideshow_links[0].get("tiktokLink") if slideshow_links else None)
+            or author.get("avatar")
+            or ""
+        )
+
         return {
             "platform": "tiktok",
             "url": url,
             "title": (raw.get("text") or raw.get("desc", ""))[:200],
             "description": (raw.get("text") or raw.get("desc", ""))[:500],
-            "thumbnail_url": (
-                video_meta.get("coverUrl")
-                or raw.get("coverUrl")
-                or raw.get("thumbnailUrl")
-                or raw.get("imageUrl", "")
-            ),
+            "thumbnail_url": thumbnail,
             "username": author.get("name", raw.get("username", "")),
             "likes": raw.get("diggCount", raw.get("likeCount", 0)),
             "comments": raw.get("commentCount", 0),
+            "views": raw.get("playCount", 0),
             "created_at": raw.get("createTime") or raw.get("createTimeISO", ""),
         }
 
@@ -55,3 +65,13 @@ class TikTokCollector(PlatformCollector):
         if "#ad" in title or "#sponsored" in title:
             return False
         return True
+
+    # ─── Engagement thresholds (TikTok = 높은 편) ──────
+    def min_likes(self) -> int:
+        return 100
+
+    def min_comments(self) -> int:
+        return 10
+
+    def min_views(self) -> int:
+        return 1000

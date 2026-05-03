@@ -4,6 +4,11 @@ export interface SearchRequest {
   max_per_keyword: number
   region: string
   use_ai_scoring: boolean
+  // ─── 신규 ──────────────
+  max_days?: number | null
+  min_likes?: number | null
+  min_comments?: number | null
+  min_views?: number | null
 }
 
 export interface SearchResponse {
@@ -13,6 +18,7 @@ export interface SearchResponse {
   after_dedup: number
   new_videos: number
   platforms_used: string[]
+  stopped?: boolean
 }
 
 export interface SearchProgress {
@@ -37,6 +43,9 @@ export interface VideoItem {
   category: string
   region: string
   relevance_score: number
+  likes: number
+  comments: number
+  views: number
   downloaded: boolean
   filepath: string
   filesize_bytes: number
@@ -81,4 +90,11 @@ export interface LibraryQuery {
   downloaded?: boolean
   limit?: number
   offset?: number
+}
+
+export interface EngagementThresholds {
+  tiktok: { minLikes: number; minComments: number; minViews: number }
+  instagram: { minLikes: number; minComments: number; minViews: number }
+  youtube: { minLikes: number; minComments: number; minViews: number }
+  facebook: { minLikes: number; minComments: number; minViews: number }
 }

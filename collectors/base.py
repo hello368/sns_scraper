@@ -29,9 +29,50 @@ class PlatformCollector(ABC):
         """결과 유효성 검사 (오버라이드 가능)"""
         return bool(parsed.get("url"))
 
+    def engagement_sort_key(self, parsed: dict) -> float:
+        """Engagement score for trending filter — 높을수록 인기 영상"""
+        likes = int(parsed.get("likes", 0) or 0)
+        comments = int(parsed.get("comments", 0) or 0)
+        views = int(parsed.get("views", 0) or 0)
+        # 가중치: 좋아요 1x, 댓글 3x, 조회수 0.01x
+        return likes + comments * 3 + views * 0.01
+
+    def get_fetch_multiplier(self) -> int:
+        """Apify에서 몇 배로 많이 가져올지 (trending top-N 필터용)"""
+        return 3
+
     def extract_url(self, raw: dict) -> str:
         """원본 데이터에서 URL 추출 (플랫폼마다 필드명 다름)"""
         return raw.get("url") or raw.get("webLink") or ""
+
+    # ─── Engagement thresholds ───────────────────────────
+    def min_likes(self) -> int:
+        """이 플랫폼에서 통과할 최소 좋아요 수 (0 = 비활성화)"""
+        return 0
+
+    def min_comments(self) -> int:
+        """최소 댓글 수 (0 = 비활성화)"""
+        return 0
+
+    def min_views(self) -> int:
+        """최소 조회수 (0 = 비활성화)"""
+        return 0
+
+    def meets_engagement_threshold(self, parsed: dict) -> bool:
+        """Engagement 최소 조건을 만족하는지 검사"""
+        likes = int(parsed.get("likes", 0) or 0)
+        comments = int(parsed.get("comments", 0) or 0)
+        views = int(parsed.get("views", 0) or 0)
+        min_l = self.min_likes()
+        min_c = self.min_comments()
+        min_v = self.min_views()
+        if min_l > 0 and likes < min_l:
+            return False
+        if min_c > 0 and comments < min_c:
+            return False
+        if min_v > 0 and views < min_v:
+            return False
+        return True
 
 
 # 표준 응답 형식
