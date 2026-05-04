@@ -39,4 +39,4 @@ class YouTubeCollector(PlatformCollector):
         return 0           # streamers~youtube-scraper가 댓글수 필드를 안 줌
 
     def min_views(self) -> int:
-        return 10000       # ✅ viewCount는 안정적! 1만뷰 이상
+        return 0           # viewCount는 있지만 조회수 적어도 관련성 높은 콘텐츠 가능 → relevance_score에 위임
