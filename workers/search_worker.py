@@ -139,9 +139,9 @@ class SearchWorker:
             scorer = Scorer()
             filtered = scorer.score(filtered)
 
-        # 4.5 관련도 필터 — 점수 4 미만은 저장하지 않음
-        # Instagram은 좋아요/조회수 데이터가 없어 AI 관련도로만 평가하므로 기준 상향
-        MIN_RELEVANCE = 4
+        # 4.5 관련도 필터 — 점수 3 미만은 저장하지 않음
+        # Med Spa 콘텐츠는 제목만으로 정확한 평가가 어려워 낮은 기준 적용
+        MIN_RELEVANCE = 3
         before_filter = len(filtered)
         filtered = [r for r in filtered if r.get("relevance_score", 0) >= MIN_RELEVANCE]
         removed = before_filter - len(filtered)
