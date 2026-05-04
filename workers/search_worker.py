@@ -453,6 +453,11 @@ class SearchWorker:
                 if min_views > 0 and views < min_views:
                     continue
 
+                # 3️⃣ 이미 DB에 있는 URL인가? — Apify 크레딧 낭비 방지
+                url = parsed.get("url", "")
+                if url and self._repo.video_exists(url):
+                    continue
+
                 results.append(parsed)
                 if len(results) >= limit:
                     break

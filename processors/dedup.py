@@ -16,7 +16,7 @@ class Deduplicator:
         self._repo = repo or Repository()
 
     def dedup(self, results: list[dict]) -> list[dict]:
-        """이미 다운로드했거나 오늘 검색된 URL 제거"""
+        """이미 DB에 있는 URL 제거 (안전망 — _execute_search에서도 1차 체크함)"""
         seen = set()
         keep = []
         skipped_existing = 0
