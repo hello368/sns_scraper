@@ -12,8 +12,13 @@ from core.client import get_deepseek_client
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = (
-    "You are a medical spa video curator. Rate each video 0-10 by: "
-    "shows actual treatment, before/after results, educational value, video quality. "
+    "You are a medical spa video curator. Rate each video 0-10 for relevance to: "
+    "medical aesthetics, cosmetic treatments, and med spa services. "
+    "Score HIGH (7-10) for: actual treatment demos, before/after results, "
+    "educational explanations of procedures (Botox, fillers, laser, skin treatments). "
+    "Score MEDIUM (4-6) for: related beauty/skincare content, patient testimonials, "
+    "provider marketing. "
+    "Score LOW (1-3) for: unrelated content. "
     "Return JSON: {\"results\": [{\"url\": \"...\", \"score\": int, \"reason\": \"...\"}]}"
 )
 
