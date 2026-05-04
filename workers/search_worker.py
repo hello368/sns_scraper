@@ -69,6 +69,7 @@ class SearchWorker:
             min_likes: Optional[int] = None,
             min_comments: Optional[int] = None,
             min_views: Optional[int] = None,
+            expand_keywords: bool = True,
             ) -> dict:
         """전체 검색 파이프라인 실행 (동기)
 
@@ -76,6 +77,7 @@ class SearchWorker:
             max_days: 검색 기간 제한 (일). 최근 N일 이내 영상만.
             min_likes/min_comments/min_views: 전역 engagement 오버라이드.
                 None = 플랫폼 기본값 사용.
+            expand_keywords: False면 DeepSeek 키워드 확장 스킵 (개별 탭 검색용)
         """
         platforms = platforms or list(config.apify_actors.keys())
         max_per_keyword = max_per_keyword or config.max_results_per_keyword
@@ -88,9 +90,13 @@ class SearchWorker:
         self._global_min_comments = min_comments
         self._global_min_views = min_views
 
-        # 1. 키워드 확장 (지역 반영)
-        all_keywords = self._expand_keywords(keywords, region)
-        logger.info(f"🔑 키워드 {len(keywords)}개 → {len(all_keywords)}개 확장됨 (region={region})")
+        # 1. 키워드 확장 (지역 반영) — 개별 탭 검색은 확장 스킵
+        if expand_keywords:
+            all_keywords = self._expand_keywords(keywords, region)
+            logger.info(f"🔑 키워드 {len(keywords)}개 → {len(all_keywords)}개 확장됨 (region={region})")
+        else:
+            all_keywords = list(keywords)
+            logger.info(f"🔑 키워드 확장 스킵: 원본 {len(keywords)}개 사용")
 
         # 2. 플랫폼별 검색 (중단 가능)
         all_results = self._search_all_platforms(all_keywords, platforms, max_per_keyword, original_keywords=keywords)

@@ -110,7 +110,7 @@ def search(req: SearchRequest):
 
 def _run_platform_search(keyword: str, platform: str, task_id: str,
                           max_days: int, limit: int, region: str = "US", **extra):
-    """Run a search on a single platform"""
+    """Run a search on a single platform (키워드 확장 없이 원본 키워드만)"""
     create_progress(task_id, 1)
     def _run():
         worker = SearchWorker()
@@ -123,6 +123,7 @@ def _run_platform_search(keyword: str, platform: str, task_id: str,
                 task_id=task_id,
                 max_days=max_days,
                 dedup_hours=1,  # 1시간 이내 재검색 허용
+                expand_keywords=False,  # 개별 탭 검색 — 유저 직접 입력 키워드만 사용
             )
             complete_progress(task_id)
         except Exception as e:

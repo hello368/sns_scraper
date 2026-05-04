@@ -17,7 +17,7 @@ export default function TikTokTab({ onSearchStart }: Props) {
   const [keyword, setKeyword] = useState("")
   const [hashtags, setHashtags] = useState("")
   const [maxDays, setMaxDays] = useState(7)
-  const [resultsPerPage, setResultsPerPage] = useState(10)
+  const [resultsPerPage, setResultsPerPage] = useState(20)
   const [region, setRegion] = useState("US")
   const [searching, setSearching] = useState(false)
 
