@@ -122,7 +122,7 @@ def _run_platform_search(keyword: str, platform: str, task_id: str,
                 region=region,
                 task_id=task_id,
                 max_days=max_days,
-                dedup_hours=1,  # 1시간 이내 재검색 허용
+                dedup_hours=0,  # 0 = 항상 새로 검색 (수동 클릭이므로)
                 expand_keywords=False,  # 개별 탭 검색 — 유저 직접 입력 키워드만 사용
             )
             complete_progress(task_id)
