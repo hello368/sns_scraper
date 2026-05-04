@@ -162,11 +162,15 @@ class SearchWorker:
         }
 
     def _save_results(self, items: list[dict], region: str) -> int:
-        """결과를 DB에 저장"""
+        """결과를 DB에 저장 — 중복은 카운트 제외"""
         saved_count = 0
         for item in items:
+            url = item["url"]
+            # 중복이면 건너뛰고 카운트도 하지 않음
+            if self._repo.video_exists(url):
+                continue
             self._repo.save_video(
-                url=item["url"],
+                url=url,
                 platform=item["platform"],
                 title=item.get("title", ""),
                 description=item.get("description", ""),
