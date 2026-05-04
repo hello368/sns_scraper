@@ -4,7 +4,7 @@ export interface SearchRequest {
   max_per_keyword: number
   region: string
   use_ai_scoring: boolean
-  // ─── 신규 ──────────────
+  // ─── New params ─────────
   max_days?: number | null
   min_likes?: number | null
   min_comments?: number | null
@@ -59,6 +59,8 @@ export interface LibraryStats {
   total_size_mb: number
   by_platform: Record<string, number>
   by_category: Record<string, number>
+  total_searches?: number
+  total_cu_cost?: number
 }
 
 export interface StatusResponse {
@@ -87,7 +89,10 @@ export interface LibraryQuery {
   category?: string
   platform?: string
   region?: string
+  search?: string
   downloaded?: boolean
+  sort_by?: "created_at" | "likes" | "comments" | "views" | "relevance_score"
+  sort_order?: "asc" | "desc"
   limit?: number
   offset?: number
 }

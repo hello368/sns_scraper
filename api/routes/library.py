@@ -22,20 +22,31 @@ def list_videos(
     category: Optional[str] = Query(None),
     platform: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=200),
+    search: Optional[str] = Query(None),
+    sort_by: str = Query("created_at", regex=r"^(created_at|likes|comments|views|relevance_score)$"),
+    sort_order: str = Query("desc", regex=r"^(asc|desc)$"),
+    limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):
-    """영상 목록 조회"""
+    """영상 목록 조회 (정렬 + 필터 + 검색)"""
     repo = Repository()
     videos = repo.get_videos(
         category=category,
         platform=platform,
         region=region,
+        search=search,
+        sort_by=sort_by,
+        sort_order=sort_order,
         limit=limit,
         offset=offset,
     )
+    total_count = repo.count_videos(
+        category=category,
+        region=region,
+        search=search,
+    )
     return {
-        "total": len(videos),
+        "total": total_count,
         "videos": [
             {
                 "id": v.id,

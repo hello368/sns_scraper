@@ -1,12 +1,19 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { api } from "@/lib/api"
 import type { VideoItem, LibraryStats, StatusResponse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Film,
   Globe,
@@ -17,6 +24,8 @@ import {
   XCircle,
   HardDrive,
   ExternalLink,
+  ArrowUpDown,
+  Coins,
 } from "lucide-react"
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -47,6 +56,14 @@ const REGION_COLORS: Record<string, string> = {
   KR: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
   EU: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 }
+
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "created_at", label: "📅 Date" },
+  { value: "likes", label: "❤️ Likes" },
+  { value: "comments", label: "💬 Comments" },
+  { value: "views", label: "👁 Views" },
+  { value: "relevance_score", label: "⭐ Score" },
+]
 
 function StatCard({
   icon: Icon,
@@ -111,28 +128,50 @@ function PlatformBar({
   )
 }
 
+function formatCount(n: number): string {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+  return String(n)
+}
+
 export default function DashboardPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [stats, setStats] = useState<LibraryStats | null>(null)
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Filter/sort state
   const [regionFilter, setRegionFilter] = useState<string>("all")
+  const [sortBy, setSortBy] = useState<string>("created_at")
+  const [sortOrder, setSortOrder] = useState<string>("desc")
+
+  const fetchData = useCallback(async () => {
+    setLoading(true)
+    try {
+      const regionParam = regionFilter !== "all" ? regionFilter : undefined
+      const [s, st, vRes] = await Promise.all([
+        api.getStatus(),
+        api.getStats(regionParam),
+        api.getVideos({
+          limit: 200,
+          region: regionParam,
+          sort_by: sortBy as any,
+          sort_order: sortOrder as any,
+        }),
+      ])
+      setStatus(s)
+      setStats(st)
+      setVideos(vRes.videos)
+    } catch (err) {
+      console.error("Failed to fetch dashboard data:", err)
+    } finally {
+      setLoading(false)
+    }
+  }, [regionFilter, sortBy, sortOrder])
 
   useEffect(() => {
-    const regionParam = regionFilter !== "all" ? regionFilter : undefined
-    Promise.all([
-      api.getStatus(),
-      api.getStats(regionParam),
-      api.getVideos({ limit: 10, region: regionParam }),
-    ])
-      .then(([s, st, v]) => {
-        setStatus(s)
-        setStats(st)
-        setVideos(v)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [regionFilter])
+    fetchData()
+  }, [fetchData])
 
   if (loading) {
     return (
@@ -159,73 +198,100 @@ export default function DashboardPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">MediSpa AI 콘텐츠 개요</p>
+        <p className="text-muted-foreground">MediSpa AI Content Overview</p>
       </div>
 
-      {/* Stat Cards — API field names: total_videos, downloaded, pending_downloads */}
+      {/* Stat Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           icon={Film}
           label="Total Videos"
           value={status?.total_videos ?? 0}
-          description="DB에 저장된 영상"
+          description="Videos stored in database"
         />
         <StatCard
           icon={Globe}
           label="Platforms"
           value={Object.keys(totalByPlatform).length}
-          description="활성 수집 플랫폼"
+          description="Active collection platforms"
         />
         <StatCard
           icon={Download}
           label="Downloaded"
           value={stats?.downloaded ?? 0}
-          description="디스크에 저장됨"
+          description="Stored on disk"
         />
         <StatCard
-          icon={Clock}
-          label="Pending"
-          value={status?.pending_downloads ?? 0}
-          description="다운로드 대기 중"
+          icon={Coins}
+          label="Total Searches"
+          value={stats?.total_searches ?? 0}
+          description={`CU: ${stats?.total_cu_cost ?? "—"}`}
         />
       </div>
 
-      {/* Region Filter */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-muted-foreground">Region:</span>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setRegionFilter("all")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-              regionFilter === "all"
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted hover:bg-muted/80"
-            }`}
-          >
-            All
-          </button>
-          {Object.entries(REGION_NAMES).map(([key, label]) => (
+      {/* Filters Row */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Region Filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Region:</span>
+          <div className="flex gap-1 flex-wrap">
             <button
-              key={key}
-              onClick={() => setRegionFilter(key)}
+              onClick={() => setRegionFilter("all")}
               className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                regionFilter === key
+                regionFilter === "all"
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted hover:bg-muted/80"
               }`}
             >
-              {label}
+              All
             </button>
-          ))}
+            {Object.entries(REGION_NAMES).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setRegionFilter(key)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  regionFilter === key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted hover:bg-muted/80"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sort By */}
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <button
+            onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}
+            className="px-2 py-1.5 text-xs font-medium rounded-md bg-muted hover:bg-muted/80 transition-colors"
+          >
+            {sortOrder === "desc" ? "↓ Desc" : "↑ Asc"}
+          </button>
         </div>
       </div>
 
+      {/* Charts Row */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Platform Distribution */}
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Platform Distribution</CardTitle>
-            <CardDescription>플랫폼별 영상 수</CardDescription>
+            <CardDescription>Videos by Platform</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {Object.entries(totalByPlatform).length > 0 ? (
@@ -249,7 +315,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">System Status</CardTitle>
-            <CardDescription>서비스 및 리소스 상태</CardDescription>
+            <CardDescription>Service & Resource Status</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -303,87 +369,110 @@ export default function DashboardPage() {
                 {status?.disk_usage_pct.toFixed(1)}%
               </Badge>
             </div>
+            {/* New: Credit usage */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">Credit Usage</span>
+              </div>
+              <div className="text-right">
+                <Badge variant="default" className="gap-1">
+                  {stats?.total_cu_cost?.toFixed(4) ?? "—"} CU
+                </Badge>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  {stats?.total_searches ?? 0} searches
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Videos */}
+      {/* All Videos Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Recent Videos</CardTitle>
-          <CardDescription>최근 수집된 10개 영상</CardDescription>
+          <CardTitle className="text-lg">Library Videos</CardTitle>
+          <CardDescription>
+            {stats?.total_videos ?? 0} videos · Sorted by{" "}
+            {SORT_OPTIONS.find((o) => o.value === sortBy)?.label ?? sortBy}{" "}
+            {sortOrder === "desc" ? "↓" : "↑"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {videos.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Platform</TableHead>
-                  <TableHead>Region</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Downloaded</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {videos.map((v) => (
-                  <TableRow key={v.id}>
-                    <TableCell className="max-w-[250px]">
-                      <a
-                        href={v.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 font-medium truncate hover:text-primary transition-colors"
-                      >
-                        <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        <span className="truncate">{v.title || v.url?.split("/").pop() || "Untitled"}</span>
-                      </a>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={PLATFORM_COLORS[v.platform] ?? ""}
-                        variant="outline"
-                      >
-                        {v.platform}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={REGION_COLORS[v.region] ?? ""}
-                        variant="outline"
-                      >
-                        {REGION_NAMES[v.region] || v.region}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={CATEGORY_COLORS[v.category] ?? ""}
-                        variant="outline"
-                      >
-                        {v.category || "—"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {v.relevance_score != null ? (
-                        <span className="font-mono text-sm">{v.relevance_score}/10</span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {v.downloaded ? (
-                        <Badge variant="default" className="bg-green-600">
-                          Yes
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline">No</Badge>
-                      )}
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[40%]">Title</TableHead>
+                    <TableHead>Platform</TableHead>
+                    <TableHead>Region</TableHead>
+                    <TableHead>❤️</TableHead>
+                    <TableHead>💬</TableHead>
+                    <TableHead>👁</TableHead>
+                    <TableHead>Score</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {videos.map((v) => (
+                    <TableRow key={v.id}>
+                      <TableCell className="max-w-[300px]">
+                        <a
+                          href={v.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 font-medium hover:text-primary transition-colors"
+                        >
+                          <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <span className="truncate">
+                            {v.title || v.url?.split("/").pop() || "Untitled"}
+                          </span>
+                        </a>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={PLATFORM_COLORS[v.platform] ?? ""}
+                          variant="outline"
+                        >
+                          {v.platform}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={REGION_COLORS[v.region] ?? ""}
+                          variant="outline"
+                        >
+                          {REGION_NAMES[v.region] || v.region}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {(v.likes ?? 0) > 0 ? formatCount(v.likes) : "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {(v.comments ?? 0) > 0 ? formatCount(v.comments) : "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">
+                        {(v.views ?? 0) > 0 ? formatCount(v.views) : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {v.relevance_score != null ? (
+                          <span className="font-mono text-sm">
+                            {v.relevance_score >= 7
+                              ? "🟢"
+                              : v.relevance_score >= 4
+                                ? "🟡"
+                                : "🔴"}{" "}
+                            {v.relevance_score}/10
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="text-center py-12 text-muted-foreground">
               <Film className="h-10 w-10 mx-auto mb-3 opacity-40" />

@@ -16,8 +16,9 @@ from processors.dedup import Deduplicator
 from processors.scorer import Scorer
 from workers.progress import should_stop, complete_progress as mark_progress
 
-logger = logging.getLogger(__name__)
+import re
 
+logger = logging.getLogger(__name__)
 
 _COLLECTOR_MAP: dict = {}
 
@@ -35,6 +36,9 @@ def _get_collector(platform: str):
         elif platform == "youtube":
             from collectors.youtube import YouTubeCollector
             _COLLECTOR_MAP[platform] = YouTubeCollector()
+        elif platform == "facebook_ads":
+            from collectors.facebook_ads import FacebookAdsCollector
+            _COLLECTOR_MAP[platform] = FacebookAdsCollector()
         else:
             raise ValueError(f"Unknown platform: {platform}")
     return _COLLECTOR_MAP[platform]
@@ -129,6 +133,15 @@ class SearchWorker:
             scorer = Scorer()
             filtered = scorer.score(filtered)
 
+        # 4.5 관련도 필터 — 점수 6 미만은 저장하지 않음
+        # Instagram은 좋아요/조회수 데이터가 없어 AI 관련도로만 평가하므로 기준 상향
+        MIN_RELEVANCE = 6
+        before_filter = len(filtered)
+        filtered = [r for r in filtered if r.get("relevance_score", 0) >= MIN_RELEVANCE]
+        removed = before_filter - len(filtered)
+        if removed:
+            logger.info(f"🔍 관련도 필터: {removed}개 제외 (score < {MIN_RELEVANCE}), {len(filtered)}개 유지")
+
         # 5. DB 저장 (region + engagement 포함)
         saved_count = self._save_results(filtered, region)
 
@@ -175,7 +188,9 @@ class SearchWorker:
                 messages=[{
                     "role": "system",
                     "content": (
-                        "Generate 10 search queries tailored for the specified region. "
+                        "Generate 10 search queries in ENGLISH only. "
+                        "The queries target content relevant to the specified region, "
+                        "but all query terms must be in English. "
                         "Return JSON: {\"queries\": [...]}"
                     ),
                 }, {
@@ -187,12 +202,12 @@ class SearchWorker:
                         "region_names": region_names,
                         "context": (
                             f"Medical spa, facial, botox, filler treatment videos "
-                            f"relevant to {region_names}. Use localized terms."
+                            f"relevant to {region_names}. Use English terms only."
                         ),
                     }),
                 }],
                 response_format={"type": "json_object"},
-                temperature=0.7,
+                temperature=0.3,
             )
             data = json.loads(resp.choices[0].message.content)
             expanded = data.get("queries", data.get("keywords", []))
@@ -283,47 +298,149 @@ class SearchWorker:
             return True  # 파싱 실패시 통과
 
     def _search_one(self, platform: str, keyword: str, limit: int) -> list[dict]:
-        """단일 플랫폼 × 단일 키워드 검색 + engagement trending 필터 + engagement 최소조건"""
+        """단일 플랫폼 × 단일 키워드 검색 + engagement 필터"""
+        import re  # 🛡️ 로컬 임포트 (모듈 레벨이 안 먹는 케이스 대응)
         try:
             collector = _get_collector(platform)
         except ValueError:
             logger.warning(f"지원 안 함: {platform}")
             return []
 
-        # 피쳐링: 3배 많이 가져와서 engagement 기준 상위 N%만 유지
-        fetch_limit = limit * collector.get_fetch_multiplier()
-        run_input = collector.build_run_input(keyword, fetch_limit)
-        actor_name = collector.apify_actor
+        # HASHTAG 전략: 공백/특수문자 제거 후 검색
+        from collectors.platform_defaults import get_config
+        cfg = get_config(platform)
+        if cfg.search_strategy.name == "HASHTAG":
+            import re
+            clean = keyword.replace("#", "").strip().lower()
+            clean = re.sub(r"[^a-zA-Z0-9_]", "", clean)  # remove spaces/special chars
+            if len(clean) < 2:
+                logger.debug(f"  ⏭️ 너무 짧은 해시태그: {keyword} → {clean}")
+                return []
+            if clean != keyword.replace("#", "").strip().lower():
+                logger.debug(f"  🔧 해시태그 정제: '{keyword}' → '{clean}'")
+            keyword = clean
 
-        logger.info(f"🔍 {platform}/{keyword[:40]}... (fetch {fetch_limit}, keep {limit})")
+        # 날짜 필터 문자열 생성 (액터가 지원하는 형식으로)
+        date_filter = None
+        if self._max_days:
+            from collectors.platform_defaults import get_config
+            cfg = get_config(platform)
+            if cfg.has_date_filter:
+                if cfg.date_supports_relative:
+                    date_filter = f"{self._max_days} days"
+                else:
+                    # enum 방식: hour/today/week/month/year
+                    if self._max_days <= 1:
+                        date_filter = "today"
+                    elif self._max_days <= 7:
+                        date_filter = "week"
+                    elif self._max_days <= 30:
+                        date_filter = "month"
+                    else:
+                        date_filter = "year"
+
+        # BRAND 전략 (FB Ads Library): 확장 검색어 각각 따로 호출
+        if hasattr(collector, 'actor_config') and collector.actor_config.search_strategy.name == "BRAND":
+            expansions = collector.get_search_expansions(keyword)
+            all_results = []
+            for exp in expansions:
+                run_input = collector.build_run_input(exp, limit, date_filter=date_filter)
+                items = self._execute_search(platform, exp, limit, collector, run_input)
+                all_results.extend(items)
+            return all_results
+
+        # 일반 전략
+        run_input = collector.build_run_input(keyword, limit, date_filter=date_filter)
+        return self._execute_search(platform, keyword, limit, collector, run_input)
+
+    def _execute_search(self, platform: str, keyword: str, limit: int,
+                        collector, run_input: dict) -> list[dict]:
+        """실제 Apify 호출 + 파싱 + 필터링 (중단 가능)"""
+        actor_name = collector.apify_actor
+        logger.info(f"🔍 {platform}/{keyword[:40]}... (limit {limit})")
+
+        # inline stop check
+        from workers.progress import should_stop
+        def _is_stopped():
+            return hasattr(self, '_task_id') and self._task_id and should_stop(self._task_id)
+
+        # 1️⃣ 중단 체크 (Apify 호출 전)
+        if _is_stopped():
+            logger.info(f"  ⏹️ 중단됨 (호출 전): {platform}/{keyword[:30]}")
+            return []
 
         try:
-            run = self._apify.actor(actor_name).call(run_input=run_input)
+            # 비동기 start → poll 방식으로 변경 (blocking call 회피)
+            run = self._apify.actor(actor_name).start(run_input=run_input)
+            run_id = run["id"]
+            logger.info(f"  ⏳ {actor_name} 실행 시작: {run_id}")
         except Exception as e:
             logger.error(f"Apify 실행 실패 {platform}/{keyword}: {e}")
             self._repo.save_search(keyword, platform, status="failed", error=str(e))
             return []
 
+        # 2️⃣ Poll while waiting, check stop
+        import time as _time
+        max_wait = 120  # 2분 타임아웃
+        waited = 0
+        while waited < max_wait:
+            # 중단 체크
+            if _is_stopped():
+                logger.info(f"  ⏹️ 중단 감지 — Apify run abort: {run_id}")
+                try:
+                    self._apify.run(run_id).abort()
+                except Exception:
+                    pass
+                return []
+
+            # Run 상태 확인
+            try:
+                run_info = self._apify.run(run_id).get()
+                status = run_info.get("status", "UNKNOWN")
+                if status == "SUCCEEDED":
+                    break
+                elif status in ("FAILED", "ABORTED", "TIMED-OUT"):
+                    logger.warning(f"  ⚠️ Apify run {status}: {run_id}")
+                    self._repo.save_search(keyword, platform, status=status.lower())
+                    return []
+            except Exception:
+                pass
+
+            _time.sleep(2)
+            waited += 2
+
+        if waited >= max_wait:
+            logger.warning(f"  ⏰ Apify 타임아웃: {run_id}")
+            self._apify.run(run_id).abort()
+            return []
+
+        # ✅ fetch defaultDatasetId from run info (start() may not include it)
+        try:
+            run_info = self._apify.run(run_id).get()
+            dataset_id = run_info["defaultDatasetId"]
+        except Exception as e:
+            logger.error(f"  ❌ 데이터셋 ID 조회 실패: {e}")
+            return []
+
         results = []
-        for item in self._apify.dataset(run["defaultDatasetId"]).iterate_items():
+        for item in self._apify.dataset(dataset_id).iterate_items():
             parsed = collector.parse_item(item)
             if parsed and collector.validate(parsed):
-                # ─── 새로운 필터들 ────────────────
 
                 # 1️⃣ 기간 필터 (max_days)
                 if not self._filter_by_date(parsed):
                     continue
 
-                # 2️⃣ Engagement 최소 조건 (전역 오버라이드 → 플랫폼 기본값)
+                # 2️⃣ Engagement 최소 조건
                 min_likes = collector.min_likes()
                 min_comments = collector.min_comments()
                 min_views = collector.min_views()
                 if self._global_min_likes is not None:
-                    min_likes = self._global_min_likes
+                    min_likes = max(min_likes, self._global_min_likes)
                 if self._global_min_comments is not None:
-                    min_comments = self._global_min_comments
+                    min_comments = max(min_comments, self._global_min_comments)
                 if self._global_min_views is not None:
-                    min_views = self._global_min_views
+                    min_views = max(min_views, self._global_min_views)
 
                 likes = int(parsed.get("likes", 0) or 0)
                 comments = int(parsed.get("comments", 0) or 0)
@@ -337,17 +454,21 @@ class SearchWorker:
                     continue
 
                 results.append(parsed)
-                if len(results) >= fetch_limit:
+                if len(results) >= limit:
                     break
 
-        # 🔥 Trending filter: engagement 기준 정렬 후 상위 N개만 유지
+        # Engagement 정렬 후 상위 N개
         results.sort(key=lambda r: collector.engagement_sort_key(r), reverse=True)
         results = results[:limit]
+
+        usage = run.get("usage", {}) or {}
+        cu_cost = usage.get("ACTOR_COMPUTE_UNITS", usage.get("usageTotalUsd", 0.0)) or 0.0
 
         self._repo.save_search(
             keyword=keyword, platform=platform,
             result_count=len(results),
             apify_run_id=run.get("id", ""),
+            cu_cost=cu_cost,
         )
 
         logger.info(f"  → {len(results)}개 발견 ({platform}/{keyword[:30]})")

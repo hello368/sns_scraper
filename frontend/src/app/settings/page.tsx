@@ -76,7 +76,7 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="text-muted-foreground">시스템 설정 및 상태</p>
+        <p className="text-muted-foreground">System Settings & Status</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -87,7 +87,7 @@ export default function SettingsPage() {
               <Server className="h-5 w-5" />
               API Services
             </CardTitle>
-            <CardDescription>외부 서비스 연결 상태</CardDescription>
+            <CardDescription>External Service Status</CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
             <InfoRow
@@ -137,7 +137,7 @@ export default function SettingsPage() {
               <HardDrive className="h-5 w-5" />
               System Resources
             </CardTitle>
-            <CardDescription>서버 리소스 현황</CardDescription>
+            <CardDescription>Server Resource Usage</CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
             <InfoRow
@@ -169,7 +169,7 @@ export default function SettingsPage() {
               <Database className="h-5 w-5" />
               Database
             </CardTitle>
-            <CardDescription>SQLite 저장소 현황</CardDescription>
+            <CardDescription>SQLite Storage Status</CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
             <InfoRow label="Total Videos" value={status?.total_videos ?? 0} icon={Database} />
@@ -189,7 +189,7 @@ export default function SettingsPage() {
               <Globe className="h-5 w-5" />
               Project Info
             </CardTitle>
-            <CardDescription>MediSpa AI 정보</CardDescription>
+            <CardDescription>MediSpa AI Info</CardDescription>
           </CardHeader>
           <CardContent className="space-y-1">
             <InfoRow label="Version" value="v0.2.0" />
@@ -207,7 +207,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">System Health</CardTitle>
-          <CardDescription>전체 시스템 상태 요약</CardDescription>
+          <CardDescription>System Status Summary</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-3">

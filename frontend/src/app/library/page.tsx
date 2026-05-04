@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react"
 import { api } from "@/lib/api"
 import type { VideoItem, LibraryStats } from "@/lib/types"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -26,6 +26,8 @@ import {
   AlertCircle,
   X,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -67,52 +69,87 @@ const REGION_COLORS: Record<string, string> = {
   EU: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
 }
 
+const PAGE_SIZE = 20
+
+function formatCount(n: number): string {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M"
+  if (n >= 1000) return (n / 1000).toFixed(1) + "K"
+  return String(n)
+}
+
 export default function LibraryPage() {
   const [videos, setVideos] = useState<VideoItem[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [stats, setStats] = useState<LibraryStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [platformFilter, setPlatformFilter] = useState("all")
   const [regionFilter, setRegionFilter] = useState("all")
-  const [downloading, setDownloading] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(0)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [downloading, setDownloading] = useState<Set<string>>(new Set())
   const [downloadingAll, setDownloadingAll] = useState(false)
 
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+
   const fetchData = useCallback(async () => {
+    setLoading(true)
     try {
-      const regionParam = regionFilter !== "all" ? regionFilter : undefined
+      const params: any = {
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      }
+      if (categoryFilter !== "all") params.category = categoryFilter
+      if (platformFilter !== "all") params.platform = platformFilter
+      if (regionFilter !== "all") params.region = regionFilter
+      if (searchTerm.trim()) params.search = searchTerm.trim()
+
       const [v, s] = await Promise.all([
-        api.getVideos({ limit: 200, region: regionParam }),
-        api.getStats(regionParam),
+        api.getVideos(params),
+        api.getStats(regionFilter !== "all" ? regionFilter : undefined),
       ])
-      setVideos(v)
+      setVideos(v.videos)
+      setTotalCount(v.total)
       setStats(s)
     } catch (err) {
       toast.error("Failed to load library")
     } finally {
       setLoading(false)
     }
-  }, [regionFilter])
+  }, [categoryFilter, platformFilter, regionFilter, searchTerm, page])
 
   useEffect(() => {
     fetchData()
   }, [fetchData])
 
-  // Filter logic
-  const filtered = videos.filter((v) => {
-    if (categoryFilter !== "all" && v.category !== categoryFilter) return false
-    if (platformFilter !== "all" && v.platform !== platformFilter) return false
-    if (regionFilter !== "all" && v.region !== regionFilter) return false
-    if (searchTerm) {
-      const q = searchTerm.toLowerCase()
-      const matchTitle = v.title?.toLowerCase().includes(q)
-      const matchDesc = v.description?.toLowerCase().includes(q)
-      const matchUrl = v.url?.toLowerCase().includes(q)
-      if (!matchTitle && !matchDesc && !matchUrl) return false
-    }
-    return true
-  })
+  // Reset selection on page change
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [page, categoryFilter, platformFilter, regionFilter])
+
+  // Search debounce
+  const [debouncedSearch, setDebouncedSearch] = useState("")
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(debouncedSearch)
+      setPage(0)
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [debouncedSearch])
+
+  const handleCategoryChange = (value: string) => {
+    setCategoryFilter(value)
+    setPage(0)
+  }
+  const handlePlatformChange = (value: string) => {
+    setPlatformFilter(value)
+    setPage(0)
+  }
+  const handleRegionChange = (value: string) => {
+    setRegionFilter(value)
+    setPage(0)
+  }
 
   async function handleDownload(videoId: string) {
     setDownloading((prev) => new Set(prev).add(videoId))
@@ -163,49 +200,6 @@ export default function LibraryPage() {
     return `${m}:${s.toString().padStart(2, "0")}`
   }
 
-  // Loading state
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Library</h1>
-          <p className="text-muted-foreground">Loading videos...</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-52 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  // Empty state
-  if (videos.length === 0) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Library</h1>
-          <p className="text-muted-foreground">수집된 영상 라이브러리</p>
-        </div>
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Film className="h-16 w-16 text-muted-foreground/40 mb-4" />
-            <p className="text-lg font-medium text-muted-foreground">
-              No videos in library
-            </p>
-            <p className="text-sm text-muted-foreground/60 mb-4">
-              Go to Search tab to start collecting content
-            </p>
-            <Button variant="outline" onClick={() => (window.location.href = "/search")}>
-              Go to Search
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -213,7 +207,7 @@ export default function LibraryPage() {
         <div>
           <h1 className="text-2xl font-bold">Library</h1>
           <p className="text-muted-foreground">
-            {videos.length} videos · {stats?.downloaded ?? 0} downloaded
+            {totalCount} videos · {stats?.downloaded ?? 0} downloaded
           </p>
         </div>
         {selectedIds.size > 0 && (
@@ -234,23 +228,23 @@ export default function LibraryPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search videos..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={debouncedSearch}
+            onChange={(e) => setDebouncedSearch(e.target.value)}
             className="pl-9"
           />
-          {searchTerm && (
+          {debouncedSearch && (
             <button
-              onClick={() => setSearchTerm("")}
+              onClick={() => {
+                setDebouncedSearch("")
+                setPage(0)
+              }}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </button>
           )}
         </div>
-        <Select
-          value={categoryFilter}
-          onValueChange={(value: string | null) => setCategoryFilter(value ?? "all")}
-        >
+        <Select value={categoryFilter} onValueChange={handleCategoryChange}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Category" />
           </SelectTrigger>
@@ -263,10 +257,7 @@ export default function LibraryPage() {
             <SelectItem value="other">Other</SelectItem>
           </SelectContent>
         </Select>
-        <Select
-          value={platformFilter}
-          onValueChange={(value: string | null) => setPlatformFilter(value ?? "all")}
-        >
+        <Select value={platformFilter} onValueChange={handlePlatformChange}>
           <SelectTrigger className="w-[140px]">
             <SelectValue placeholder="Platform" />
           </SelectTrigger>
@@ -278,10 +269,7 @@ export default function LibraryPage() {
             <SelectItem value="youtube">YouTube</SelectItem>
           </SelectContent>
         </Select>
-        <Select
-          value={regionFilter}
-          onValueChange={(value: string | null) => setRegionFilter(value ?? "all")}
-        >
+        <Select value={regionFilter} onValueChange={handleRegionChange}>
           <SelectTrigger className="w-[130px]">
             <SelectValue placeholder="Region" />
           </SelectTrigger>
@@ -294,181 +282,220 @@ export default function LibraryPage() {
         </Select>
       </div>
 
-      {/* Video Grid */}
-      {filtered.length > 0 ? (
+      {/* Loading */}
+      {loading && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((video) => {
-            const PlatformIcon = PLATFORM_ICONS[video.platform]
-            const isSelected = selectedIds.has(video.id)
-            const isDownloading = downloading.has(video.id)
-
-            return (
-              <Card
-                key={video.id}
-                className={`group cursor-pointer transition-all hover:shadow-md ${
-                  isSelected ? "ring-2 ring-primary" : ""
-                }`}
-                onClick={() => toggleSelect(video.id)}
-              >
-                {/* Thumbnail */}
-                <div className="relative aspect-video bg-muted overflow-hidden rounded-t-xl">
-                  {video.thumbnail_url ? (
-                    <img
-                      src={video.thumbnail_url}
-                      alt={video.title || "Video thumbnail"}
-                      className="object-cover w-full h-full"
-                      loading="lazy"
-                      onError={(e) => {
-                        ;(e.target as HTMLImageElement).style.display = "none"
-                      }}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full">
-                      <Film className="h-10 w-10 text-muted-foreground/30" />
-                    </div>
-                  )}
-                  {/* Platform badge on thumbnail */}
-                  <div className="absolute top-2 left-2">
-                    <Badge
-                      variant="secondary"
-                      className={`gap-1 text-xs ${
-                        PLATFORM_COLORS[video.platform]
-                      }`}
-                    >
-                      {PlatformIcon && <PlatformIcon className="h-3 w-3" />}
-                      {video.platform}
-                    </Badge>
-                  </div>
-                  {/* Duration */}
-                  {(video.duration_sec ?? 0) > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="absolute bottom-2 right-2 text-xs"
-                    >
-                      {formatDuration(video.duration_sec)}
-                    </Badge>
-                  )}
-                  {/* Selected indicator */}
-                  {isSelected && (
-                    <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-                      <CheckCircle2 className="h-10 w-10 text-primary" />
-                    </div>
-                  )}
-                </div>
-
-                <CardContent className="p-3 space-y-2">
-                  {/* Title + Engagement right next to it */}
-                  <div className="flex items-start gap-2">
-                    <a
-                      href={video.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 text-sm font-medium leading-tight line-clamp-2 hover:text-primary transition-colors min-w-0"
-                    >
-                      {video.title || "Untitled"}
-                    </a>
-                    {/* 🔥 Engagement badges next to title */}
-                    {(video.likes ?? 0) > 0 && (
-                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5" title="Likes">
-                        ❤ {(video.likes >= 1000 ? (video.likes / 1000).toFixed(1) + "K" : video.likes)}
-                      </span>
-                    )}
-                    {(video.views ?? 0) > 0 && (
-                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5" title="Views">
-                        👁 {(video.views >= 1000 ? (video.views / 1000).toFixed(1) + "K" : video.views)}
-                      </span>
-                    )}
-                    {(video.comments ?? 0) > 0 && (
-                      <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5" title="Comments">
-                        💬 {(video.comments >= 1000 ? (video.comments / 1000).toFixed(1) + "K" : video.comments)}
-                      </span>
-                    )}
-                  </div>
-                  {/* Author (username) */}
-                  <p className="text-xs text-muted-foreground truncate">
-                    {video.username || "Unknown"}
-                  </p>
-                  {/* Tags */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {video.category && (
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 ${
-                          CATEGORY_COLORS[video.category] ?? ""
-                        }`}
-                      >
-                        {video.category}
-                      </Badge>
-                    )}
-                    {video.region && (
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1.5 py-0 ${
-                          REGION_COLORS[video.region] ?? ""
-                        }`}
-                      >
-                        {REGION_NAMES[video.region] || video.region}
-                      </Badge>
-                    )}
-                  </div>
-                  {/* Action row */}
-                  <div className="flex items-center justify-between pt-1">
-                    {video.downloaded ? (
-                      <div className="flex items-center gap-1">
-                        <a
-                          href={`${API_BASE}/download/file/${video.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-green-700 transition-colors"
-                        >
-                          <Download className="h-3 w-3" />
-                          View File
-                        </a>
-                        {video.url && (
-                          <a
-                            href={video.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            Original
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 text-xs gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDownload(video.id)
-                        }}
-                        disabled={isDownloading}
-                      >
-                        <Download className="h-3 w-3" />
-                        {isDownloading ? "..." : "Download"}
-                      </Button>
-                    )}
-                    {(video.filesize_bytes ?? 0) > 0 && (
-                      <span className="text-[10px] text-muted-foreground">
-                        {(video.filesize_bytes / 1024 / 1024).toFixed(1)}MB
-                      </span>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-52 rounded-xl" />
+          ))}
         </div>
-      ) : (
+      )}
+
+      {/* Empty */}
+      {!loading && videos.length === 0 && (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <AlertCircle className="h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-muted-foreground">No videos match the current filters</p>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Film className="h-16 w-16 text-muted-foreground/40 mb-4" />
+            <p className="text-lg font-medium text-muted-foreground">
+              No videos found
+            </p>
+            <p className="text-sm text-muted-foreground/60">
+              Try changing filters or go to Search to start collecting
+            </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Video Grid */}
+      {!loading && videos.length > 0 && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {videos.map((video) => {
+              const PlatformIcon = PLATFORM_ICONS[video.platform] || Film
+              const isSelected = selectedIds.has(video.id)
+              const isDownloading = downloading.has(video.id)
+
+              return (
+                <Card
+                  key={video.id}
+                  className={`group cursor-pointer transition-all hover:shadow-md ${
+                    isSelected ? "ring-2 ring-primary" : ""
+                  }`}
+                  onClick={() => toggleSelect(video.id)}
+                >
+                  {/* Thumbnail */}
+                  <div className="relative aspect-video bg-muted overflow-hidden rounded-t-xl">
+                    {video.thumbnail_url ? (
+                      <img
+                        src={video.thumbnail_url}
+                        alt={video.title || "Video thumbnail"}
+                        className="object-cover w-full h-full"
+                        loading="lazy"
+                        onError={(e) => {
+                          ;(e.target as HTMLImageElement).style.display = "none"
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center h-full">
+                        <Film className="h-10 w-10 text-muted-foreground/30" />
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2">
+                      <Badge
+                        variant="secondary"
+                        className={`gap-1 text-xs ${
+                          PLATFORM_COLORS[video.platform] ?? ""
+                        }`}
+                      >
+                        {PlatformIcon && <PlatformIcon className="h-3 w-3" />}
+                        {video.platform}
+                      </Badge>
+                    </div>
+                    {(video.duration_sec ?? 0) > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className="absolute bottom-2 right-2 text-xs"
+                      >
+                        {formatDuration(video.duration_sec)}
+                      </Badge>
+                    )}
+                    {isSelected && (
+                      <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                        <CheckCircle2 className="h-10 w-10 text-primary" />
+                      </div>
+                    )}
+                  </div>
+
+                  <CardContent className="p-3 space-y-2">
+                    {/* Title + Engagement */}
+                    <div className="flex items-start gap-2">
+                      <a
+                        href={video.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 text-sm font-medium leading-tight line-clamp-2 hover:text-primary transition-colors min-w-0"
+                      >
+                        {video.title || "Untitled"}
+                      </a>
+                      {video.likes != null && (
+                        <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-rose-500 bg-rose-50 dark:bg-rose-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5">
+                          ❤ {formatCount(Math.max(0, video.likes))}
+                        </span>
+                      )}
+                      {video.views != null && (
+                        <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-blue-500 bg-blue-50 dark:bg-blue-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5">
+                          👁 {formatCount(video.views)}
+                        </span>
+                      )}
+                      {video.comments != null && (
+                        <span className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 rounded-md px-1.5 py-0.5 leading-none mt-0.5">
+                          💬 {formatCount(video.comments)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {video.username || "Unknown"}
+                    </p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {video.category && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 ${
+                            CATEGORY_COLORS[video.category] ?? ""
+                          }`}
+                        >
+                          {video.category}
+                        </Badge>
+                      )}
+                      {video.region && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1.5 py-0 ${
+                            REGION_COLORS[video.region] ?? ""
+                          }`}
+                        >
+                          {REGION_NAMES[video.region] || video.region}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between pt-1">
+                      {video.downloaded ? (
+                        <div className="flex items-center gap-1">
+                          <a
+                            href={`${API_BASE}/download/file/${video.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-green-700 transition-colors"
+                          >
+                            <Download className="h-3 w-3" />
+                            View File
+                          </a>
+                          {video.url && (
+                            <a
+                              href={video.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Original
+                            </a>
+                          )}
+                        </div>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(video.id)
+                          }}
+                          disabled={isDownloading}
+                        >
+                          <Download className="h-3 w-3" />
+                          {isDownloading ? "..." : "Download"}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between pt-4">
+            <p className="text-sm text-muted-foreground">
+              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} of {totalCount}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 0}
+                onClick={() => setPage(page - 1)}
+                className="gap-1"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground px-2">
+                Page {page + 1} / {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage(page + 1)}
+                className="gap-1"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

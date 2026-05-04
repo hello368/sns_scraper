@@ -96,6 +96,78 @@ export const api = {
     })
   },
 
+  // ─── Platform-specific search ──────────────
+  searchInstagram(params: {
+    keyword: string
+    search_type?: string
+    content_type?: string
+    hashtags?: string[]
+    max_days?: number
+    results_limit?: number
+    region?: string
+  }): Promise<{ task_id: string }> {
+    return fetchApi("/search/instagram", {
+      method: "POST",
+      body: JSON.stringify(params),
+    })
+  },
+
+  searchTikTok(params: {
+    keyword: string
+    hashtags?: string[]
+    max_days?: number
+    results_per_page?: number
+    region?: string
+  }): Promise<{ task_id: string }> {
+    return fetchApi("/search/tiktok", {
+      method: "POST",
+      body: JSON.stringify(params),
+    })
+  },
+
+  searchYouTube(params: {
+    keyword: string
+    sort_by?: string
+    date_filter?: string
+    length_filter?: string
+    max_results?: number
+    region?: string
+  }): Promise<{ task_id: string }> {
+    return fetchApi("/search/youtube", {
+      method: "POST",
+      body: JSON.stringify(params),
+    })
+  },
+
+  searchFacebook(params: {
+    keyword?: string
+    page_url?: string
+    max_days?: number
+    include_transcript?: boolean
+    results_limit?: number
+    region?: string
+  }): Promise<{ task_id: string }> {
+    return fetchApi("/search/facebook", {
+      method: "POST",
+      body: JSON.stringify(params),
+    })
+  },
+
+  searchFacebookAds(params: {
+    query: string
+    country?: string
+    ad_type?: string
+    active_status?: string
+    use_ai_analysis?: boolean
+    max_ads?: number
+    region?: string
+  }): Promise<{ task_id: string }> {
+    return fetchApi("/search/facebook_ads", {
+      method: "POST",
+      body: JSON.stringify(params),
+    })
+  },
+
   getSearchProgress(taskId: string): Promise<SearchProgress> {
     return fetchApi(`/search/progress/${taskId}`)
   },
@@ -112,18 +184,21 @@ export const api = {
   },
 
   // ─── Library ───────────────────────────────
-  getVideos(query?: LibraryQuery): Promise<VideoItem[]> {
+  getVideos(query?: LibraryQuery): Promise<{ total: number; videos: VideoItem[] }> {
     const params = new URLSearchParams()
     if (query?.category) params.set("category", query.category)
     if (query?.platform) params.set("platform", query.platform)
     if (query?.region) params.set("region", query.region)
+    if (query?.search) params.set("search", query.search)
     if (query?.downloaded !== undefined) params.set("downloaded", String(query.downloaded))
     if (query?.limit) params.set("limit", String(query.limit))
     if (query?.offset) params.set("offset", String(query.offset))
+    if (query?.sort_by) params.set("sort_by", query.sort_by)
+    if (query?.sort_order) params.set("sort_order", query.sort_order)
     const qs = params.toString()
     return fetchApi<{ total: number; videos: VideoItem[] }>(
       `/library/videos${qs ? `?${qs}` : ""}`
-    ).then((r) => r.videos)
+    )
   },
 
   getStats(region?: string): Promise<LibraryStats> {

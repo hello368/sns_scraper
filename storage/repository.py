@@ -71,6 +71,9 @@ class Repository:
                    likes: int = 0, comments: int = 0, views: int = 0,
                    relevance_score: float = 5.0, tags: list = None) -> Video:
         vid = video_id_from_url(url)
+        existing = self._session.query(Video).filter(Video.id == vid).first()
+        if existing:
+            return existing
         video = Video(
             id=vid, url=url, platform=platform, title=title[:500],
             description=description, thumbnail_url=thumbnail_url,
@@ -99,7 +102,10 @@ class Repository:
                    platform: Optional[str] = None,
                    region: Optional[str] = None,
                    downloaded: Optional[int] = None,
-                   limit: int = 100, offset: int = 0):
+                   search: Optional[str] = None,
+                   sort_by: str = "created_at",
+                   sort_order: str = "desc",
+                   limit: int = 20, offset: int = 0):
         q = self._session.query(Video)
         if category:
             q = q.filter(Video.category == category)
@@ -109,15 +115,32 @@ class Repository:
             q = q.filter(Video.region == region)
         if downloaded is not None:
             q = q.filter(Video.downloaded == downloaded)
-        return q.order_by(Video.created_at.desc()).limit(limit).offset(offset).all()
+        if search:
+            like = f"%{search}%"
+            q = q.filter(
+                Video.title.ilike(like) | Video.description.ilike(like)
+            )
+        # 정렬
+        sort_col = getattr(Video, sort_by, Video.created_at)
+        if sort_order == "asc":
+            q = q.order_by(sort_col.asc())
+        else:
+            q = q.order_by(sort_col.desc())
+        return q.limit(limit).offset(offset).all()
 
     def count_videos(self, category: Optional[str] = None,
-                     region: Optional[str] = None) -> int:
+                     region: Optional[str] = None,
+                     search: Optional[str] = None) -> int:
         q = self._session.query(Video)
         if category:
             q = q.filter(Video.category == category)
         if region:
             q = q.filter(Video.region == region)
+        if search:
+            like = f"%{search}%"
+            q = q.filter(
+                Video.title.ilike(like) | Video.description.ilike(like)
+            )
         return q.count()
 
     def get_library_stats(self, region: Optional[str] = None) -> dict:
@@ -136,12 +159,24 @@ class Repository:
         total_bytes = base.with_entities(
             func.sum(Video.filesize_bytes)
         ).filter(Video.downloaded == 1).scalar() or 0
+
+        # 크레딧 사용량
+        from core.models import SearchRecord
+        credit_stats = self._session.query(
+            func.count(SearchRecord.id),
+            func.sum(SearchRecord.cu_cost),
+        ).filter(SearchRecord.status == "completed").first()
+        total_searches = credit_stats[0] or 0
+        total_cu_cost = round(credit_stats[1] or 0.0, 4)
+
         return {
             "total_videos": total,
             "downloaded": downloaded,
             "total_size_mb": round(total_bytes / (1024 * 1024), 1),
             "by_category": dict(by_category),
             "by_platform": dict(by_platform),
+            "total_searches": total_searches,
+            "total_cu_cost": total_cu_cost,
         }
 
     # ─── Download Queue ─────────────────────────────────

@@ -1,6 +1,8 @@
 """
-TikTok Collector — 키워드 검색, 영상 메타데이터 포함
-TikTok은 모든 플랫폼 중 engagement가 가장 높음
+TikTok Collector — clockworks/tiktok-scraper
+검색 전략: KEYWORD (searchQueries 배열)
+특이사항: 좋아요 10K 상한 → playCount로 필터링
+         유료 필터: leastDiggs, mostDiggs, searchDatePosted, searchSorting
 """
 from __future__ import annotations
 from typing import Optional
@@ -8,22 +10,6 @@ from collectors.base import PlatformCollector
 
 
 class TikTokCollector(PlatformCollector):
-
-    @property
-    def name(self) -> str:
-        return "tiktok"
-
-    @property
-    def apify_actor(self) -> str:
-        return "clockworks~tiktok-scraper"
-
-    def build_run_input(self, keyword: str, limit: int) -> dict:
-        return {
-            "searchQueries": [keyword],
-            "resultsLimit": limit,
-            "maxResults": limit,
-            "scrapeVideoMetadata": True,
-        }
 
     def parse_item(self, raw: dict) -> Optional[dict]:
         url = raw.get("webVideoUrl") or raw.get("videoUrl") or raw.get("url") or raw.get("webLink")
@@ -33,7 +19,6 @@ class TikTokCollector(PlatformCollector):
         video_meta = raw.get("videoMeta", {}) or {}
         slideshow_links = raw.get("slideshowImageLinks") or []
 
-        # Thumbnail: 여러 fallback 시도
         thumbnail = (
             video_meta.get("coverUrl")
             or raw.get("coverUrl")
@@ -51,27 +36,26 @@ class TikTokCollector(PlatformCollector):
             "description": (raw.get("text") or raw.get("desc", ""))[:500],
             "thumbnail_url": thumbnail,
             "username": author.get("name", raw.get("username", "")),
-            "likes": raw.get("diggCount", raw.get("likeCount", 0)),
+            "likes": raw.get("diggCount", raw.get("likeCount", 0)),    # 10K 상한
             "comments": raw.get("commentCount", 0),
-            "views": raw.get("playCount", 0),
+            "views": raw.get("playCount", 0),                          # ✅ 정상!
             "created_at": raw.get("createTime") or raw.get("createTimeISO", ""),
         }
 
     def validate(self, parsed: dict) -> bool:
         if not super().validate(parsed):
             return False
-        # 광고/프로모션 제외
         title = (parsed.get("title") or "").lower()
         if "#ad" in title or "#sponsored" in title:
             return False
         return True
 
-    # ─── Engagement thresholds (TikTok = 높은 편) ──────
+    # ─── Engagement thresholds ──
     def min_likes(self) -> int:
-        return 100
+        return 0              # 10K 상한으로 무의미 → views로 필터링
 
     def min_comments(self) -> int:
-        return 10
+        return 20
 
     def min_views(self) -> int:
-        return 1000
+        return 10000          # 조회수 1만+

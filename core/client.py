@@ -8,7 +8,7 @@ from apify_client import ApifyClient
 from openai import OpenAI
 
 from core.config import config
-from core.errors import ApifyAuthError
+from core.errors import ApifyError
 
 logger = logging.getLogger(__name__)
 
@@ -41,4 +41,4 @@ def validate_apify_token(client: ApifyClient | None) -> bool:
         return True
     except Exception as e:
         logger.error(f"Apify 토큰 검증 실패: {e}")
-        raise ApifyAuthError("Apify 토큰이 유효하지 않습니다", detail=str(e))
+        raise ApifyError("Apify 토큰이 유효하지 않습니다", detail=str(e))

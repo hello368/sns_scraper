@@ -26,11 +26,13 @@ class Config:
     deepseek_base_url: str = "https://api.deepseek.com"
 
     # ─── Platforms ───────────────────────────────────────
+    # 각 액터의 상세 설정은 collectors/platform_defaults.py 참조
     apify_actors: dict = field(default_factory=lambda: {
-        "instagram": "apify~instagram-hashtag-scraper",
+        "instagram": "apify~instagram-hashtag-scraper",  # likesCount=0 but returns individual posts
         "tiktok": "clockworks~tiktok-scraper",
         "facebook": "apify~facebook-posts-scraper",
         "youtube": "streamers~youtube-scraper",
+        "facebook_ads": "viralanalyzer~facebook-ads-library",  # ★ 신규
     })
 
     # ─── Categories ──────────────────────────────────────

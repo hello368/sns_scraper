@@ -67,25 +67,8 @@ class LibraryQuery(BaseModel):
     offset: int = Field(default=0, ge=0)
 
 
-class TaskStatus(BaseModel):
-    task_id: str
-    status: str = "unknown"
-    progress: float = 0.0
-    result: Optional[dict] = None
-    error: Optional[str] = None
-
-
 class KeywordRequest(BaseModel):
     seeds: list[str] = Field(
         default=["medical spa", "facial", "botox", "filler"],
         min_length=1, max_length=10,
     )
-
-
-class StatusResponse(BaseModel):
-    status: str = "ok"
-    apify_configured: bool
-    deepseek_configured: bool
-    total_videos: int = 0
-    pending_downloads: int = 0
-    disk_usage_pct: float = 0.0

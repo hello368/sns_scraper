@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "MediSpa AI — Content Curator",
-  description: "의료 스파 트리트먼트 영상 검색 및 큐레이션",
+  description: "Medical spa treatment video search and curation",
 }
 
 export default function RootLayout({

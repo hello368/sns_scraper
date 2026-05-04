@@ -1,6 +1,6 @@
 """
-Facebook Collector — Facebook Posts Scraper (Apify)
-키워드 → Facebook 검색 URL로 변환하여 검색
+Facebook Collector — apify/facebook-posts-scraper
+검색 전략: URL_SEARCH (startUrls + onlyPostsNewerThan)
 """
 from __future__ import annotations
 from typing import Optional
@@ -8,24 +8,6 @@ from collectors.base import PlatformCollector
 
 
 class FacebookCollector(PlatformCollector):
-
-    @property
-    def name(self) -> str:
-        return "facebook"
-
-    @property
-    def apify_actor(self) -> str:
-        return "apify~facebook-posts-scraper"
-
-    def build_run_input(self, keyword: str, limit: int) -> dict:
-        # Facebook 검색 URL 구성 (video search)
-        search_url = f"https://www.facebook.com/search/videos/?q={keyword.replace(' ', '+')}"
-        return {
-            "startUrls": [{"url": search_url}],
-            "resultsLimit": limit,
-            "scrapePosts": True,
-            "scrapeVideo": True,
-        }
 
     def parse_item(self, raw: dict) -> Optional[dict]:
         url = raw.get("videoUrl") or raw.get("url") or raw.get("webLink")
@@ -44,12 +26,12 @@ class FacebookCollector(PlatformCollector):
             "created_at": raw.get("createdAt") or raw.get("timestamp", ""),
         }
 
-    # ─── Engagement thresholds (FB = 낮은 편) ──────
+    # ─── Engagement thresholds ──
     def min_likes(self) -> int:
-        return 5
+        return 1000
 
     def min_comments(self) -> int:
-        return 2
+        return 50
 
     def min_views(self) -> int:
-        return 200
+        return 50000
