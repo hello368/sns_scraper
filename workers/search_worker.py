@@ -93,7 +93,7 @@ class SearchWorker:
         logger.info(f"🔑 키워드 {len(keywords)}개 → {len(all_keywords)}개 확장됨 (region={region})")
 
         # 2. 플랫폼별 검색 (중단 가능)
-        all_results = self._search_all_platforms(all_keywords, platforms, max_per_keyword)
+        all_results = self._search_all_platforms(all_keywords, platforms, max_per_keyword, original_keywords=keywords)
 
         # 중단 체크
         if should_stop(task_id):
@@ -217,7 +217,8 @@ class SearchWorker:
             return seeds
 
     def _search_all_platforms(
-        self, keywords: list[str], platforms: list[str], limit: int
+        self, keywords: list[str], platforms: list[str], limit: int,
+        original_keywords: list[str] | None = None
     ) -> list[dict]:
         """모든 플랫폼 × 모든 키워드 검색 (동기, 순차, 중단 가능) + 진행 상황 업데이트"""
         if not self._apify:
@@ -225,6 +226,10 @@ class SearchWorker:
             return []
 
         results = []
+        # HASHTAG 전략 플랫폼은 원본 키워드만 사용 (확장X → 해시태그 변환시 무의미)
+        from collectors.platform_defaults import get_config as _get_cfg
+        platform_configs = {p: _get_cfg(p) for p in platforms}
+        original_set = set(original_keywords or [])
         total = len(keywords) * len(platforms)
         step = 0
 
@@ -238,6 +243,13 @@ class SearchWorker:
         for keyword in keywords:
             for platform in platforms:
                 step += 1
+
+                # 🛑 HASHTAG 전략: 확장 키워드 스킵 (해시태그가 아닌 키워드는 0건)
+                cfg = platform_configs.get(platform)
+                if cfg and cfg.search_strategy.name == "HASHTAG":
+                    if keyword not in original_set and len(original_set) > 0:
+                        logger.debug(f"  ⏭️ HASHTAG 스킵 (확장): {platform}/{keyword[:30]}")
+                        continue
 
                 # 🛑 중단 체크 (매 스텝마다)
                 if _check_stop():
