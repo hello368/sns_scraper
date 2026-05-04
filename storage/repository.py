@@ -14,7 +14,37 @@ from core.models import SearchRecord, Video, DownloadTask, SessionLocal
 
 
 def video_id_from_url(url: str) -> str:
-    """URL로부터 안정적인 ID 생성"""
+    """URL로부터 안정적인 ID 생성 — 플랫폼별 비디오 ID 추출 + URL 정규화"""
+    import re
+    if not url:
+        url = ""
+    url = url.strip().rstrip("/").replace("http://", "https://").replace("://www.", "://")
+
+    # TikTok: tiktok.com/@user/video/VID
+    m = re.search(r"tiktok\.com/@[\w.\-]+/video/(\d+)", url)
+    if m:
+        key = f"tiktok:{m.group(1)}"
+        return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+    # Instagram: instagram.com/p/SHORTCODE or instagram.com/reel/SHORTCODE
+    m = re.search(r"instagram\.com/(?:p|reel)/([\w\-]+)", url)
+    if m:
+        key = f"instagram:{m.group(1)}"
+        return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+    # YouTube: youtube.com/watch?v=VID or youtu.be/VID
+    m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w\-]+)", url)
+    if m:
+        key = f"youtube:{m.group(1)}"
+        return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+    # Facebook: facebook.com/.../videos/VID or fb.watch/...
+    m = re.search(r"facebook\.com/[\w.\-]+/videos/(\d+)", url)
+    if m:
+        key = f"facebook:{m.group(1)}"
+        return hashlib.sha256(key.encode()).hexdigest()[:16]
+
+    # Fallback: normalized URL 전체 해시
     return hashlib.sha256(url.encode()).hexdigest()[:16]
 
 
