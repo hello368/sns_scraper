@@ -39,4 +39,4 @@ class YouTubeCollector(PlatformCollector):
         return 0           # streamers~youtube-scraper가 댓글수 필드를 안 줌
 
     def min_views(self) -> int:
-        return 50000       # ✅ viewCount는 안정적!
+        return 10000       # ✅ viewCount는 안정적! 1만뷰 이상
