@@ -163,12 +163,15 @@ def search_tiktok(req: TikTokSearchRequest):
 @router.post("/youtube")
 def search_youtube(req: YouTubeSearchRequest):
     """Search YouTube"""
+    # date_filter enum → max_days 변환
+    date_to_days = {"hour": 1, "today": 1, "week": 7, "month": 30, "year": 365}
+    max_days = date_to_days.get(req.date_filter, 7)
     task_id = uuid.uuid4().hex[:12]
     _run_platform_search(
         keyword=req.keyword,
         platform="youtube",
         task_id=task_id,
-        max_days=7,
+        max_days=max_days,
         limit=req.max_results,
         region=req.region,
     )

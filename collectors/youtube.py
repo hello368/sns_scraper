@@ -33,10 +33,10 @@ class YouTubeCollector(PlatformCollector):
 
     # ─── Engagement thresholds ──
     def min_likes(self) -> int:
-        return 10000        # ✅ YouTube likes 정확!
+        return 1000        # ✅ YouTube likes 정확!
 
     def min_comments(self) -> int:
-        return 500
+        return 50
 
     def min_views(self) -> int:
-        return 500000
+        return 50000
