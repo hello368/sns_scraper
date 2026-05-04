@@ -441,6 +441,17 @@ class SearchWorker:
             return []
 
         results = []
+        # 🚀 성능/안정성: 동일 플랫폼의 기존 영상 ID를 미리 로드 (SQLAlchemy 세션 우회)
+        from storage.repository import video_id_from_url
+        existing_ids = set(
+            row[0] for row in
+            self._repo._session.execute(
+                "SELECT id FROM videos WHERE platform = ?", (platform,)
+            ).fetchall()
+        )
+        if existing_ids:
+            logger.info(f"  📦 기존 {platform} 영상 {len(existing_ids)}개 로드 — 중복 체크용")
+
         for item in self._apify.dataset(dataset_id).iterate_items():
             parsed = collector.parse_item(item)
             if parsed and collector.validate(parsed):
@@ -473,7 +484,7 @@ class SearchWorker:
 
                 # 3️⃣ 이미 DB에 있는 URL인가? — Apify 크레딧 낭비 방지
                 url = parsed.get("url", "")
-                if url and self._repo.video_exists(url):
+                if url and video_id_from_url(url) in existing_ids:
                     continue
 
                 results.append(parsed)

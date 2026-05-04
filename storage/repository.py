@@ -26,14 +26,22 @@ def video_id_from_url(url: str) -> str:
         key = f"tiktok:{m.group(1)}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
+    # TikTok fallback: URL 어디든 19자리 숫자 (TikTok video ID)가 있으면 추출
+    # vm.tiktok.com/SHORTCODE, m.tiktok.com/v/VID 등 모든 형식 대응
+    m = re.search(r"(\d{19})", url)
+    if m:
+        key = f"tiktok:{m.group(1)}"
+        return hashlib.sha256(key.encode()).hexdigest()[:16]
+
     # Instagram: instagram.com/p/SHORTCODE or instagram.com/reel/SHORTCODE
-    m = re.search(r"instagram\.com/(?:p|reel)/([\w\-]+)", url)
+    m = re.search(r"instagram\.com/(?:p|reel|tv)/([\w\-]+)", url)
     if m:
         key = f"instagram:{m.group(1)}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
     # YouTube: youtube.com/watch?v=VID or youtu.be/VID
-    m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w\-]+)", url)
+    # shorts: youtube.com/shorts/VID
+    m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([\w\-]+)", url)
     if m:
         key = f"youtube:{m.group(1)}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
