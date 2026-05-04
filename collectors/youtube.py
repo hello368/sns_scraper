@@ -33,10 +33,10 @@ class YouTubeCollector(PlatformCollector):
 
     # ─── Engagement thresholds ──
     def min_likes(self) -> int:
-        return 1000        # ✅ YouTube likes 정확!
+        return 0           # streamers~youtube-scraper가 likes를 안정적으로 안 줌 → relevance_score로 대체
 
     def min_comments(self) -> int:
-        return 50
+        return 0           # streamers~youtube-scraper가 댓글수 필드를 안 줌
 
     def min_views(self) -> int:
-        return 50000
+        return 50000       # ✅ viewCount는 안정적!

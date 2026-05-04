@@ -443,12 +443,18 @@ class SearchWorker:
         results = []
         # 🚀 성능/안정성: 동일 플랫폼의 기존 영상 ID를 미리 로드 (SQLAlchemy 세션 우회)
         from storage.repository import video_id_from_url
-        existing_ids = set(
-            row[0] for row in
-            self._repo._session.execute(
-                "SELECT id FROM videos WHERE platform = ?", (platform,)
-            ).fetchall()
-        )
+        from sqlalchemy import text as _sql_text
+        try:
+            existing_ids = set(
+                row[0] for row in
+                self._repo._session.execute(
+                    _sql_text("SELECT id FROM videos WHERE platform = :p"),
+                    {"p": platform}
+                ).fetchall()
+            )
+        except Exception:
+            existing_ids = set()
+            logger.warning(f"  ⚠️ 기존 ID 로드 실패, 중복 체크 스킵: {platform}")
         if existing_ids:
             logger.info(f"  📦 기존 {platform} 영상 {len(existing_ids)}개 로드 — 중복 체크용")
 
