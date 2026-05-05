@@ -22,9 +22,7 @@ export default function AllInOneTab({ onSearchStart }: Props) {
 
   const PLATFORMS = [
     { id: "tiktok", label: "TikTok", color: "text-pink-500" },
-    { id: "instagram", label: "Instagram", color: "text-purple-500" },
     { id: "youtube", label: "YouTube", color: "text-red-500" },
-    { id: "facebook", label: "Facebook", color: "text-blue-500" },
   ]
 
   const togglePlatform = (id: string) => {

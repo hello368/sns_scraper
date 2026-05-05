@@ -21,25 +21,19 @@ const SORT_OPTIONS = [
 ]
 
 const DATE_OPTIONS = [
-  { value: "hour", label: "Past Hour" },
-  { value: "today", label: "Today" },
-  { value: "week", label: "This Week" },
-  { value: "month", label: "This Month" },
+  { value: "all", label: "All Time" },
   { value: "year", label: "This Year" },
+  { value: "month", label: "This Month" },
+  { value: "week", label: "This Week" },
+  { value: "today", label: "Today" },
 ]
 
-const LENGTH_OPTIONS = [
-  { value: "", label: "Any" },
-  { value: "under4", label: "Under 4 min" },
-  { value: "between420", label: "4-20 min" },
-  { value: "plus20", label: "Over 20 min" },
-]
+const LENGTH_OPTIONS = [] as { value: string; label: string }[]
 
 export default function YouTubeTab({ onSearchStart }: Props) {
   const [keyword, setKeyword] = useState("")
   const [sortBy, setSortBy] = useState("views")
-  const [dateFilter, setDateFilter] = useState("week")
-  const [lengthFilter, setLengthFilter] = useState("under4")
+  const [dateFilter, setDateFilter] = useState("year")
   const [maxResults, setMaxResults] = useState(20)
   const [region, setRegion] = useState("US")
   const [searching, setSearching] = useState(false)
@@ -52,7 +46,6 @@ export default function YouTubeTab({ onSearchStart }: Props) {
         keyword: keyword.trim(),
         sort_by: sortBy,
         date_filter: dateFilter,
-        length_filter: lengthFilter,
         max_results: maxResults,
         region: region,
       })
@@ -92,41 +85,6 @@ export default function YouTubeTab({ onSearchStart }: Props) {
               {o.label}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-xs text-muted-foreground mb-2 block">Upload date</label>
-          <div className="flex gap-2 flex-wrap">
-            {DATE_OPTIONS.map(o => (
-              <button
-                key={o.value}
-                onClick={() => setDateFilter(o.value)}
-                className={`px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                  dateFilter === o.value ? "border-red-500 bg-red-50 dark:bg-red-950/20" : "hover:bg-accent/50"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <label className="text-xs text-muted-foreground mb-2 block">Duration</label>
-          <div className="flex gap-2 flex-wrap">
-            {LENGTH_OPTIONS.map(o => (
-              <button
-                key={o.value}
-                onClick={() => setLengthFilter(o.value)}
-                className={`px-2 py-1 rounded-lg border text-xs font-medium transition-colors ${
-                  lengthFilter === o.value ? "border-red-500 bg-red-50 dark:bg-red-950/20" : "hover:bg-accent/50"
-                }`}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 

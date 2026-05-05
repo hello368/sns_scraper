@@ -62,7 +62,6 @@ ACTOR_CONFIGS: dict[str, ActorConfig] = {
         default_limit=20,
         fixed_input={
             "sortingOrder": "views",                 # ← 조회수순 정렬!
-            "lengthFilter": "under4",                # ← 4분 미만 = 숏폼!
         },
         has_date_filter=True,
         date_field="dateFilter",                     # ← "week", "month", "year" 등

@@ -102,9 +102,9 @@ def _run_platform_search(keyword: str, platform: str, task_id: str,
 @router.post("/youtube")
 def search_youtube(req: YouTubeSearchRequest):
     """Search YouTube"""
-    # date_filter enum → max_days 변환
-    date_to_days = {"hour": 1, "today": 1, "week": 7, "month": 30, "year": 365}
-    max_days = date_to_days.get(req.date_filter, 7)
+    # date_filter enum → max_days 변환 (None = 전체 기간)
+    date_to_days = {"hour": 1, "today": 1, "week": 7, "month": 30, "year": 365, "all": None}
+    max_days = date_to_days.get(req.date_filter, None)
     task_id = uuid.uuid4().hex[:12]
     _run_platform_search(
         keyword=req.keyword,
