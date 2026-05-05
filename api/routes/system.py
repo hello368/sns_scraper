@@ -7,7 +7,7 @@ import json
 from fastapi import APIRouter
 from api.schemas import KeywordRequest
 
-from core.config import config, apify_configured, deepseek_configured
+from core.config import config, apify_configured, scorer_configured as deepseek_configured
 from core.client import get_deepseek_client
 from storage.repository import Repository
 
