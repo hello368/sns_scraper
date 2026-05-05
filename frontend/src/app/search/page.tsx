@@ -55,7 +55,7 @@ function formatElapsed(ms: number): string {
 }
 
 export default function SearchPage() {
-  const [activeTab, setActiveTab] = useState<TabId>("instagram")
+  const [activeTab, setActiveTab] = useState<TabId>("all")
   const [searching, setSearching] = useState(false)
   const [taskId, setTaskId] = useState<string | null>(null)
   const [startTime, setStartTime] = useState<number | null>(null)
@@ -88,7 +88,7 @@ export default function SearchPage() {
         if (prog.results_so_far && prog.results_so_far > 0) {
           try {
             const platform = prog.current_platform || activeTab
-            const lib = await api.getVideos({ platform, limit: Math.min(prog.results_so_far, 20), sort: "created_at", order: "desc" })
+            const lib = await api.getVideos({ platform, limit: Math.min(prog.results_so_far, 20), sort_by: "created_at", sort_order: "desc" })
             if (lib?.videos?.length) setLiveResults(lib.videos)
             if (lib?.total) setResultCount(lib.total)
           } catch {}

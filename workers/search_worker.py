@@ -192,7 +192,8 @@ class SearchWorker:
                         "Generate 10 search queries in ENGLISH only. "
                         "The queries target content relevant to the specified region, "
                         "but all query terms must be in English. "
-                        "Return JSON: {\"queries\": [...]}"
+                        "Return ONLY valid JSON, no markdown, no code fences. "
+                        "Format: {\"queries\": [...]}"
                     ),
                 }, {
                     "role": "user",
@@ -207,7 +208,6 @@ class SearchWorker:
                         ),
                     }),
                 }],
-                response_format={"type": "json_object"},
                 temperature=0.3,
             )
             data = json.loads(resp.choices[0].message.content)
@@ -477,6 +477,11 @@ class SearchWorker:
 
                 if len(results) >= limit:
                     break
+
+            # 다음 페이지로 이동
+            if len(results) >= limit:
+                break
+            offset += page_size
 
         # Engagement 정렬 후 상위 N개
         results.sort(key=lambda r: collector.engagement_sort_key(r), reverse=True)

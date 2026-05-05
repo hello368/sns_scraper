@@ -1,8 +1,7 @@
 """
 TikTok Collector — clockworks/tiktok-scraper
 검색 전략: KEYWORD (searchQueries 배열)
-특이사항: 좋아요 10K 상한 → playCount로 필터링
-         유료 필터: leastDiggs, mostDiggs, searchDatePosted, searchSorting
+특이사항: webVideoUrl 누락 시 authorMeta.name + id로 URL 조합
 """
 from __future__ import annotations
 from typing import Optional
@@ -12,10 +11,21 @@ from collectors.base import PlatformCollector
 class TikTokCollector(PlatformCollector):
 
     def parse_item(self, raw: dict) -> Optional[dict]:
-        url = raw.get("webVideoUrl") or raw.get("videoUrl") or raw.get("url") or raw.get("webLink")
+        author = raw.get("authorMeta", {}) or {}
+        name = author.get("name", "")
+        video_id = raw.get("id", "")
+
+        # webVideoUrl이 있으면 사용, 없으면 author + id로 URL 조합
+        url = (
+            raw.get("webVideoUrl")
+            or raw.get("videoUrl")
+            or raw.get("url")
+            or raw.get("webLink")
+            or (f"https://www.tiktok.com/@{name}/video/{video_id}" if name and video_id else None)
+        )
         if not url:
             return None
-        author = raw.get("authorMeta", {}) or {}
+
         video_meta = raw.get("videoMeta", {}) or {}
         slideshow_links = raw.get("slideshowImageLinks") or []
 
@@ -38,7 +48,7 @@ class TikTokCollector(PlatformCollector):
             "username": author.get("name", raw.get("username", "")),
             "likes": raw.get("diggCount", raw.get("likeCount", 0)),    # 10K 상한
             "comments": raw.get("commentCount", 0),
-            "views": raw.get("playCount", 0),                          # ✅ 정상!
+            "views": raw.get("playCount", 0),
             "created_at": raw.get("createTime") or raw.get("createTimeISO", ""),
         }
 
@@ -50,12 +60,11 @@ class TikTokCollector(PlatformCollector):
             return False
         return True
 
-    # ─── Engagement thresholds ──
     def min_likes(self) -> int:
-        return 0              # 10K 상한으로 무의미 → views로 필터링
+        return 0
 
     def min_comments(self) -> int:
-        return 20
+        return 0
 
     def min_views(self) -> int:
-        return 10000          # 조회수 1만+
+        return 100  # TikTok은 바이럴 플랫폼, 100뷰 이하는 제외

@@ -51,13 +51,13 @@ class Classifier:
                         "role": "system",
                         "content": (
                             "You classify medical spa treatment videos. "
-                            "Return JSON only: {\"category\": str, \"confidence\": 0-1, "
+                            "Return ONLY valid JSON, no markdown, no code fences. "
+                            "Format: {\"category\": str, \"confidence\": 0-1, "
                             "\"treatment\": str}. Categories: facial, botox, filler, medical-spa, other."
                         ),
                     },
                     {"role": "user", "content": json.dumps(prompt)},
                 ],
-                response_format={"type": "json_object"},
                 temperature=0.3,  # 낮은 온도 = 일관된 출력
             )
             data = json.loads(resp.choices[0].message.content)

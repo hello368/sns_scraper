@@ -13,26 +13,16 @@ interface Props {
   onSearchStart: (taskId: string) => void
 }
 
-const SORT_OPTIONS = [
-  { value: "views", label: "Most Viewed" },
-  { value: "date", label: "Most Recent" },
-  { value: "relevance", label: "Relevance" },
-  { value: "rating", label: "Rating" },
-]
-
 const DATE_OPTIONS = [
   { value: "all", label: "All Time" },
-  { value: "year", label: "This Year" },
-  { value: "month", label: "This Month" },
-  { value: "week", label: "This Week" },
-  { value: "today", label: "Today" },
+  { value: "year", label: "Last 2 Years" },
+  { value: "month", label: "Last Year" },
+  { value: "week", label: "Last 6 Months" },
+  { value: "today", label: "Last 3 Months" },
 ]
-
-const LENGTH_OPTIONS = [] as { value: string; label: string }[]
 
 export default function YouTubeTab({ onSearchStart }: Props) {
   const [keyword, setKeyword] = useState("")
-  const [sortBy, setSortBy] = useState("views")
   const [dateFilter, setDateFilter] = useState("year")
   const [maxResults, setMaxResults] = useState(20)
   const [region, setRegion] = useState("US")
@@ -44,7 +34,6 @@ export default function YouTubeTab({ onSearchStart }: Props) {
     try {
       const res = await api.searchYouTube({
         keyword: keyword.trim(),
-        sort_by: sortBy,
         date_filter: dateFilter,
         max_results: maxResults,
         region: region,
@@ -72,14 +61,14 @@ export default function YouTubeTab({ onSearchStart }: Props) {
       />
 
       <div>
-        <label className="text-xs text-muted-foreground mb-2 block">Sort by</label>
+        <label className="text-xs text-muted-foreground mb-2 block">Date Range</label>
         <div className="flex gap-2 flex-wrap">
-          {SORT_OPTIONS.map(o => (
+          {DATE_OPTIONS.map(o => (
             <button
               key={o.value}
-              onClick={() => setSortBy(o.value)}
+              onClick={() => setDateFilter(o.value)}
               className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
-                sortBy === o.value ? "border-red-500 bg-red-50 dark:bg-red-950/20" : "hover:bg-accent/50"
+                dateFilter === o.value ? "border-red-500 bg-red-50 dark:bg-red-950/20" : "hover:bg-accent/50"
               }`}
             >
               {o.label}
@@ -91,7 +80,7 @@ export default function YouTubeTab({ onSearchStart }: Props) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="text-xs text-muted-foreground">Max Results</label>
-          <Input type="number" min={1} max={100} value={maxResults} onChange={e => setMaxResults(Number(e.target.value))} />
+          <Input type="number" min={20} max={100} value={maxResults} onChange={e => setMaxResults(Math.max(20, Number(e.target.value)))} />
         </div>
         <RegionSelect value={region} onChange={setRegion} />
       </div>

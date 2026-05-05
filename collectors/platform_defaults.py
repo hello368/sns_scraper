@@ -55,17 +55,13 @@ ACTOR_CONFIGS: dict[str, ActorConfig] = {
         ],
     ),
     "youtube": ActorConfig(
-        actor_id="streamers~youtube-scraper",
-        search_strategy=SearchStrategy.URL_SEARCH,
-        search_field=None,                           # startUrls 사용
+        actor_id="api-ninja~youtube-search-scraper",
+        search_strategy=SearchStrategy.KEYWORD,
+        search_field="query",
         limit_field="maxResults",
         default_limit=20,
-        fixed_input={
-            "sortingOrder": "views",                 # ← 조회수순 정렬!
-        },
-        has_date_filter=True,
-        date_field="dateFilter",                     # ← "week", "month", "year" 등
-        date_supports_relative=False,                 # enum 방식: hour/today/week/month/year
+        fixed_input={},
+        has_date_filter=False,
         has_multi_hashtag=False,
         paid_filters=[],
     ),

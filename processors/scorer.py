@@ -19,7 +19,8 @@ SYSTEM_PROMPT = (
     "Score MEDIUM (4-6) for: related beauty/skincare content, patient testimonials, "
     "provider marketing. "
     "Score LOW (1-3) for: unrelated content. "
-    "Return JSON: {\"results\": [{\"url\": \"...\", \"score\": int, \"reason\": \"...\"}]}"
+    "Return ONLY valid JSON, no markdown, no code fences. "
+    "Format: {\"results\": [{\"url\": \"...\", \"score\": int, \"reason\": \"...\"}]}"
 )
 
 
@@ -65,7 +66,6 @@ class Scorer:
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": json.dumps(payload)},
                 ],
-                response_format={"type": "json_object"},
                 temperature=0.2,
             )
             data = json.loads(resp.choices[0].message.content)

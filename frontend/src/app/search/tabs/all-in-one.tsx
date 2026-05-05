@@ -15,7 +15,7 @@ interface Props {
 
 export default function AllInOneTab({ onSearchStart }: Props) {
   const [keywords, setKeywords] = useState("medical spa facial\nbotox injection\nlaser treatment")
-  const [platforms, setPlatforms] = useState(["tiktok", "instagram", "youtube"])
+  const [platforms, setPlatforms] = useState(["tiktok", "youtube"])
   const [region, setRegion] = useState("US")
   const [expanding, setExpanding] = useState(false)
   const [searching, setSearching] = useState(false)

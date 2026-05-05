@@ -62,7 +62,6 @@ def main():
                         {"role": "system", "content": SYSTEM_PROMPT},
                         {"role": "user", "content": json.dumps(payload)},
                     ],
-                    response_format={"type": "json_object"},
                     temperature=0.2,
                 )
                 data = json.loads(resp.choices[0].message.content)

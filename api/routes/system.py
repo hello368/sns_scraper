@@ -47,12 +47,11 @@ def generate_keywords(req: KeywordRequest):
             model=config.scorer_model,
             messages=[{
                 "role": "system",
-                "content": "Generate 15 search queries for treatment videos. JSON: {\"queries\":[...]}",
+                "content": "Generate 15 search queries for treatment videos. Return ONLY valid JSON, no markdown, no code fences. Format: {\"queries\":[...]}",
             }, {
                 "role": "user",
                 "content": json.dumps({"task": "expand_keywords", "seeds": seeds}),
             }],
-            response_format={"type": "json_object"},
             temperature=0.7,
         )
         data = json.loads(resp.choices[0].message.content)
