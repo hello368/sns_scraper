@@ -15,9 +15,7 @@ interface Props {
 
 export default function TikTokTab({ onSearchStart }: Props) {
   const [keyword, setKeyword] = useState("")
-  const [hashtags, setHashtags] = useState("")
-  const [maxDays, setMaxDays] = useState(7)
-  const [resultsPerPage, setResultsPerPage] = useState(20)
+  const [maxResults, setMaxResults] = useState(20)
   const [region, setRegion] = useState("US")
   const [searching, setSearching] = useState(false)
 
@@ -27,9 +25,7 @@ export default function TikTokTab({ onSearchStart }: Props) {
     try {
       const res = await api.searchTikTok({
         keyword: keyword.trim(),
-        hashtags: hashtags.split(",").map(h => h.trim()).filter(Boolean),
-        max_days: maxDays,
-        results_per_page: resultsPerPage,
+        max_results: maxResults,
         region: region,
       })
       onSearchStart(res.task_id)
@@ -54,34 +50,12 @@ export default function TikTokTab({ onSearchStart }: Props) {
         onChange={e => setKeyword(e.target.value)}
       />
 
-      <div>
-        <label className="text-xs text-muted-foreground">Hashtags (optional, comma separated)</label>
-        <Input
-          placeholder="skincare, dermatology, anti-aging"
-          value={hashtags}
-          onChange={e => setHashtags(e.target.value)}
-          className="mt-1"
-        />
-      </div>
-
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs text-muted-foreground">Period</label>
-          <select
-            className="mt-1 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm"
-            value={maxDays}
-            onChange={e => setMaxDays(Number(e.target.value))}
-          >
-            <option value={1}>1 day</option>
-            <option value={7}>7 days</option>
-            <option value={30}>30 days</option>
-            <option value={90}>90 days</option>
-          </select>
+          <label className="text-xs text-muted-foreground">Max Results</label>
+          <Input type="number" min={1} max={50} value={maxResults} onChange={e => setMaxResults(Number(e.target.value))} />
         </div>
-        <div>
-          <label className="text-xs text-muted-foreground">Results/Page</label>
-          <Input type="number" min={1} max={50} value={resultsPerPage} onChange={e => setResultsPerPage(Number(e.target.value))} />
-        </div>
+        <RegionSelect value={region} onChange={setRegion} />
       </div>
 
       <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3">

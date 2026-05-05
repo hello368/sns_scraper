@@ -36,23 +36,6 @@ class ActorConfig:
 # ─── 액터별 설정 ─────────────────────────────────────
 
 ACTOR_CONFIGS: dict[str, ActorConfig] = {
-    "instagram": ActorConfig(
-        actor_id="apify~instagram-hashtag-scraper",
-        search_strategy=SearchStrategy.HASHTAG,
-        search_field="hashtags",
-        limit_field="resultsLimit",
-        default_limit=20,
-        fixed_input={
-            "shouldDownloadVideos": False,
-            "shouldDownloadCovers": False,
-        },
-        has_date_filter=True,
-        date_field="onlyPostsNewerThan",
-        date_supports_relative=True,
-        has_multi_hashtag=True,
-        hashtag_field="hashtags",
-        paid_filters=[],
-    ),
     "tiktok": ActorConfig(
         actor_id="clockworks~tiktok-scraper",
         search_strategy=SearchStrategy.KEYWORD,
@@ -87,46 +70,6 @@ ACTOR_CONFIGS: dict[str, ActorConfig] = {
         has_multi_hashtag=False,
         paid_filters=[],
     ),
-    "facebook": ActorConfig(
-        actor_id="apify~facebook-posts-scraper",
-        search_strategy=SearchStrategy.URL_SEARCH,
-        search_field=None,
-        limit_field="resultsLimit",
-        default_limit=20,
-        fixed_input={
-            "scrapePosts": True,
-            "scrapeVideo": True,
-            "captionText": False,
-        },
-        has_date_filter=True,
-        date_field="onlyPostsNewerThan",             # ← "7 days" 지원
-        date_supports_relative=True,
-        has_multi_hashtag=False,
-        paid_filters=[],
-    ),
-    "facebook_ads": ActorConfig(
-        actor_id="viralanalyzer~facebook-ads-library",
-        search_strategy=SearchStrategy.BRAND,
-        search_field="searchQuery",
-        limit_field="maxAds",
-        default_limit=20,                            # 테스트용 20, 확장시 100
-        fixed_input={
-            "country": "KR",
-            "adType": "all",
-            "activeStatus": "all",
-            "includeAiAnalysis": False,
-        },
-        keyword_expansions=[
-            lambda kw: kw,                           # 원본
-            lambda kw: f"{kw} before after",         # "skin tightening before after"
-            lambda kw: f"{kw} treatment",            # "skin tightening treatment"
-            lambda kw: f"{kw} results",              # "skin tightening results"
-            lambda kw: f"{kw} near me",              # "skin tightening near me"
-        ],
-        has_date_filter=False,                       # Ad Library는 인풋에 날짜필터 없음
-        has_multi_hashtag=False,
-        paid_filters=[],
-    ),
 }
 
 
@@ -144,7 +87,6 @@ def build_search_url(platform: str, keyword: str) -> str:
     encoded = quote(keyword)
     urls = {
         "youtube": f"https://www.youtube.com/results?search_query={encoded}",
-        "facebook": f"https://www.facebook.com/search/videos/?q={encoded}",
     }
     url = urls.get(platform)
     if not url:

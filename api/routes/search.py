@@ -1,5 +1,5 @@
 """
-검색 API 라우트 — 전체 검색 + 플랫폼별 전용 검색 + 진행 상황
+검색 API 라우트 — 전체 검색 + YouTube 전용 검색 + 진행 상황
 """
 from __future__ import annotations
 import uuid
@@ -17,23 +17,7 @@ from workers.progress import (
 router = APIRouter(prefix="/search", tags=["search"])
 
 
-# ─── 플랫폼별 요청 스키마 ────────────────────
-
-class InstagramSearchRequest(BaseModel):
-    keyword: str = Field(..., description="Search term (hashtag name)")
-    search_type: str = Field("hashtag", description="hashtag / profile / place / user")
-    content_type: str = Field("posts", description="posts / reels / details / comments")
-    hashtags: list[str] = Field(default_factory=list, description="Multi hashtags")
-    max_days: int = Field(7, ge=1, le=365, description="Search period (days)")
-    results_limit: int = Field(20, ge=1, le=100, description="Max results")
-    region: str = Field("US", description="Region (US, KR, JP, EU)")
-
-class TikTokSearchRequest(BaseModel):
-    keyword: str = Field(..., description="Search keyword")
-    hashtags: list[str] = Field(default_factory=list, description="Multi hashtags")
-    max_days: int = Field(7, ge=1, le=365, description="Search period (days)")
-    results_per_page: int = Field(10, ge=1, le=50, description="Results per page")
-    region: str = Field("US", description="Region (US, KR, JP, EU)")
+# ─── YouTube 요청 스키마 ────────────────────
 
 class YouTubeSearchRequest(BaseModel):
     keyword: str = Field(..., description="Search term")
@@ -43,32 +27,15 @@ class YouTubeSearchRequest(BaseModel):
     max_results: int = Field(20, ge=1, le=100, description="Max results")
     region: str = Field("US", description="Region (US, KR, JP, EU)")
 
-class FacebookSearchRequest(BaseModel):
-    keyword: str = Field("", description="Search keyword")
-    page_url: str = Field("", description="Page URL (instead of keyword)")
-    max_days: int = Field(7, ge=1, le=365, description="Search period (days)")
-    include_transcript: bool = Field(False, description="Include video transcript")
-    results_limit: int = Field(20, ge=1, le=100, description="Max results")
-    region: str = Field("US", description="Region (US, KR, JP, EU)")
 
-class FacebookAdsSearchRequest(BaseModel):
-    query: str = Field(..., description="Advertiser / brand name")
-    country: str = Field("KR", description="Country ISO code")
-    ad_type: str = Field("all", description="all / political_and_issue_ads")
-    active_status: str = Field("all", description="active / inactive / all")
-    use_ai_analysis: bool = Field(False, description="Use Gemini AI analysis")
-    max_ads: int = Field(20, ge=1, le=500, description="Max ads")
-    region: str = Field("US", description="Region (US, KR, JP, EU)")
-
-
-# ─── 기존 전체 검색 ──────────────────────
+# ─── 전체 검색 ──────────────────────
 
 @router.post("", response_model=SearchResponse)
 def search(req: SearchRequest):
     """소셜미디어 플랫폼에서 영상 검색 (백그라운드)"""
     task_id = uuid.uuid4().hex[:12]
     keywords = req.keywords
-    platforms = req.platforms
+    platforms = req.platforms or ["youtube", "tiktok"]
     max_per_keyword = req.max_per_keyword
     region = req.region
 
@@ -132,34 +99,6 @@ def _run_platform_search(keyword: str, platform: str, task_id: str,
     thread.start()
 
 
-@router.post("/instagram")
-def search_instagram(req: InstagramSearchRequest):
-    """Search Instagram hashtags"""
-    task_id = uuid.uuid4().hex[:12]
-    _run_platform_search(
-        keyword=req.keyword,
-        platform="instagram",
-        task_id=task_id,
-        max_days=req.max_days,
-        limit=req.results_limit,
-        region=req.region,
-    )
-    return {"task_id": task_id, "status": "running", "platform": "instagram"}
-
-@router.post("/tiktok")
-def search_tiktok(req: TikTokSearchRequest):
-    """Search TikTok by keyword"""
-    task_id = uuid.uuid4().hex[:12]
-    _run_platform_search(
-        keyword=req.keyword,
-        platform="tiktok",
-        task_id=task_id,
-        max_days=req.max_days,
-        limit=req.results_per_page,
-        region=req.region,
-    )
-    return {"task_id": task_id, "status": "running", "platform": "tiktok"}
-
 @router.post("/youtube")
 def search_youtube(req: YouTubeSearchRequest):
     """Search YouTube"""
@@ -177,36 +116,19 @@ def search_youtube(req: YouTubeSearchRequest):
     )
     return {"task_id": task_id, "status": "running", "platform": "youtube"}
 
-@router.post("/facebook")
-def search_facebook(req: FacebookSearchRequest):
-    """Search Facebook"""
-    keyword = req.keyword or req.page_url
-    if not keyword:
-        raise HTTPException(400, "Enter a keyword or page URL")
+@router.post("/tiktok")
+def search_tiktok(req: YouTubeSearchRequest):
+    """Search TikTok by keyword (YouTube 스키마 재사용)"""
     task_id = uuid.uuid4().hex[:12]
     _run_platform_search(
-        keyword=keyword,
-        platform="facebook",
+        keyword=req.keyword,
+        platform="tiktok",
         task_id=task_id,
-        max_days=req.max_days,
-        limit=req.results_limit,
+        max_days=7,
+        limit=req.max_results,
         region=req.region,
     )
-    return {"task_id": task_id, "status": "running", "platform": "facebook"}
-
-@router.post("/facebook_ads")
-def search_facebook_ads(req: FacebookAdsSearchRequest):
-    """Search Meta Ad Library (competitor ad intelligence)"""
-    task_id = uuid.uuid4().hex[:12]
-    _run_platform_search(
-        keyword=req.query,
-        platform="facebook_ads",
-        task_id=task_id,
-        max_days=30,
-        limit=req.max_ads,
-        region=req.region,
-    )
-    return {"task_id": task_id, "status": "running", "platform": "facebook_ads"}
+    return {"task_id": task_id, "status": "running", "platform": "tiktok"}
 
 
 # ─── 진행 상황 / 중단 ──────────────────────

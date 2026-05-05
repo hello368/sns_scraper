@@ -97,26 +97,9 @@ export const api = {
   },
 
   // ─── Platform-specific search ──────────────
-  searchInstagram(params: {
-    keyword: string
-    search_type?: string
-    content_type?: string
-    hashtags?: string[]
-    max_days?: number
-    results_limit?: number
-    region?: string
-  }): Promise<{ task_id: string }> {
-    return fetchApi("/search/instagram", {
-      method: "POST",
-      body: JSON.stringify(params),
-    })
-  },
-
   searchTikTok(params: {
     keyword: string
-    hashtags?: string[]
-    max_days?: number
-    results_per_page?: number
+    max_results?: number
     region?: string
   }): Promise<{ task_id: string }> {
     return fetchApi("/search/tiktok", {
@@ -134,35 +117,6 @@ export const api = {
     region?: string
   }): Promise<{ task_id: string }> {
     return fetchApi("/search/youtube", {
-      method: "POST",
-      body: JSON.stringify(params),
-    })
-  },
-
-  searchFacebook(params: {
-    keyword?: string
-    page_url?: string
-    max_days?: number
-    include_transcript?: boolean
-    results_limit?: number
-    region?: string
-  }): Promise<{ task_id: string }> {
-    return fetchApi("/search/facebook", {
-      method: "POST",
-      body: JSON.stringify(params),
-    })
-  },
-
-  searchFacebookAds(params: {
-    query: string
-    country?: string
-    ad_type?: string
-    active_status?: string
-    use_ai_analysis?: boolean
-    max_ads?: number
-    region?: string
-  }): Promise<{ task_id: string }> {
-    return fetchApi("/search/facebook_ads", {
       method: "POST",
       body: JSON.stringify(params),
     })

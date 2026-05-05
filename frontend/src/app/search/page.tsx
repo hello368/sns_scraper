@@ -9,25 +9,19 @@ import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
 import {
   Search, Loader2, Square, RefreshCw, RotateCcw,
-  Camera, Music2, Film, Globe, BarChart3,
+  Music2, Film, BarChart3,
 } from "lucide-react"
 
 import AllInOneTab from "./tabs/all-in-one"
-import InstagramTab from "./tabs/instagram"
-import TikTokTab from "./tabs/tiktok"
 import YouTubeTab from "./tabs/youtube"
-import FacebookTab from "./tabs/facebook"
-import FacebookAdsTab from "./tabs/facebook-ads"
+import TikTokTab from "./tabs/tiktok"
 
-type TabId = "all" | "instagram" | "tiktok" | "youtube" | "facebook" | "facebook_ads"
+type TabId = "all" | "youtube" | "tiktok"
 
 const TABS: { id: TabId; label: string; icon: any; color: string }[] = [
   { id: "all", label: "All-in-One", icon: Search, color: "text-foreground" },
-  { id: "instagram", label: "Instagram", icon: Camera, color: "text-purple-500" },
-  { id: "tiktok", label: "TikTok", icon: Music2, color: "text-pink-500" },
   { id: "youtube", label: "YouTube", icon: Film, color: "text-red-500" },
-  { id: "facebook", label: "Facebook", icon: Globe, color: "text-blue-500" },
-  { id: "facebook_ads", label: "Ads Library", icon: BarChart3, color: "text-emerald-500" },
+  { id: "tiktok", label: "TikTok", icon: Music2, color: "text-pink-500" },
 ]
 
 const STORAGE_KEY = "medispa_active_task"
@@ -158,11 +152,8 @@ export default function SearchPage() {
   const renderTab = () => {
     switch (activeTab) {
       case "all": return <AllInOneTab onSearchStart={handleSearchStart} />
-      case "instagram": return <InstagramTab onSearchStart={handleSearchStart} />
-      case "tiktok": return <TikTokTab onSearchStart={handleSearchStart} />
       case "youtube": return <YouTubeTab onSearchStart={handleSearchStart} />
-      case "facebook": return <FacebookTab onSearchStart={handleSearchStart} />
-      case "facebook_ads": return <FacebookAdsTab onSearchStart={handleSearchStart} />
+      case "tiktok": return <TikTokTab onSearchStart={handleSearchStart} />
     }
   }
 

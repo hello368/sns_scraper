@@ -24,21 +24,12 @@ _COLLECTOR_MAP: dict = {}
 
 def _get_collector(platform: str):
     if platform not in _COLLECTOR_MAP:
-        if platform == "instagram":
-            from collectors.instagram import InstagramCollector
-            _COLLECTOR_MAP[platform] = InstagramCollector()
-        elif platform == "tiktok":
+        if platform == "tiktok":
             from collectors.tiktok import TikTokCollector
             _COLLECTOR_MAP[platform] = TikTokCollector()
-        elif platform == "facebook":
-            from collectors.facebook import FacebookCollector
-            _COLLECTOR_MAP[platform] = FacebookCollector()
         elif platform == "youtube":
             from collectors.youtube import YouTubeCollector
             _COLLECTOR_MAP[platform] = YouTubeCollector()
-        elif platform == "facebook_ads":
-            from collectors.facebook_ads import FacebookAdsCollector
-            _COLLECTOR_MAP[platform] = FacebookAdsCollector()
         else:
             raise ValueError(f"Unknown platform: {platform}")
     return _COLLECTOR_MAP[platform]
@@ -328,20 +319,6 @@ class SearchWorker:
             logger.warning(f"지원 안 함: {platform}")
             return []
 
-        # HASHTAG 전략: 공백/특수문자 제거 후 검색
-        from collectors.platform_defaults import get_config
-        cfg = get_config(platform)
-        if cfg.search_strategy.name == "HASHTAG":
-            import re
-            clean = keyword.replace("#", "").strip().lower()
-            clean = re.sub(r"[^a-zA-Z0-9_]", "", clean)  # remove spaces/special chars
-            if len(clean) < 2:
-                logger.debug(f"  ⏭️ 너무 짧은 해시태그: {keyword} → {clean}")
-                return []
-            if clean != keyword.replace("#", "").strip().lower():
-                logger.debug(f"  🔧 해시태그 정제: '{keyword}' → '{clean}'")
-            keyword = clean
-
         # 날짜 필터 문자열 생성 (액터가 지원하는 형식으로)
         date_filter = None
         if self._max_days:
@@ -360,16 +337,6 @@ class SearchWorker:
                         date_filter = "month"
                     else:
                         date_filter = "year"
-
-        # BRAND 전략 (FB Ads Library): 확장 검색어 각각 따로 호출
-        if hasattr(collector, 'actor_config') and collector.actor_config.search_strategy.name == "BRAND":
-            expansions = collector.get_search_expansions(keyword)
-            all_results = []
-            for exp in expansions:
-                run_input = collector.build_run_input(exp, limit, date_filter=date_filter)
-                items = self._execute_search(platform, exp, limit, collector, run_input)
-                all_results.extend(items)
-            return all_results
 
         # 일반 전략
         run_input = collector.build_run_input(keyword, limit, date_filter=date_filter)
@@ -462,42 +429,52 @@ class SearchWorker:
         if existing_ids:
             logger.info(f"  📦 기존 {platform} 영상 {len(existing_ids)}개 로드 — 중복 체크용")
 
-        for item in self._apify.dataset(dataset_id).iterate_items():
-            parsed = collector.parse_item(item)
-            if parsed and collector.validate(parsed):
+        # 페이지네이션 방식으로 데이터셋 아이템 로드 (iterate_items 대신)
+        offset = 0
+        page_size = 50
+        while True:
+            page = self._apify.dataset(dataset_id).list_items(offset=offset, limit=page_size).items
+            if not page:
+                break
+            for item in page:
+                parsed = collector.parse_item(item)
+                if parsed and collector.validate(parsed):
 
-                # 1️⃣ 기간 필터 (max_days)
-                if not self._filter_by_date(parsed):
-                    continue
+                    # 1️⃣ 기간 필터 (max_days)
+                    if not self._filter_by_date(parsed):
+                        continue
 
-                # 2️⃣ Engagement 최소 조건
-                min_likes = collector.min_likes()
-                min_comments = collector.min_comments()
-                min_views = collector.min_views()
-                if self._global_min_likes is not None:
-                    min_likes = max(min_likes, self._global_min_likes)
-                if self._global_min_comments is not None:
-                    min_comments = max(min_comments, self._global_min_comments)
-                if self._global_min_views is not None:
-                    min_views = max(min_views, self._global_min_views)
+                    # 2️⃣ Engagement 최소 조건
+                    min_likes = collector.min_likes()
+                    min_comments = collector.min_comments()
+                    min_views = collector.min_views()
+                    if self._global_min_likes is not None:
+                        min_likes = max(min_likes, self._global_min_likes)
+                    if self._global_min_comments is not None:
+                        min_comments = max(min_comments, self._global_min_comments)
+                    if self._global_min_views is not None:
+                        min_views = max(min_views, self._global_min_views)
 
-                likes = int(parsed.get("likes", 0) or 0)
-                comments = int(parsed.get("comments", 0) or 0)
-                views = int(parsed.get("views", 0) or 0)
+                    likes = int(parsed.get("likes", 0) or 0)
+                    comments = int(parsed.get("comments", 0) or 0)
+                    views = int(parsed.get("views", 0) or 0)
 
-                if min_likes > 0 and likes < min_likes:
-                    continue
-                if min_comments > 0 and comments < min_comments:
-                    continue
-                if min_views > 0 and views < min_views:
-                    continue
+                    if min_likes > 0 and likes < min_likes:
+                        continue
+                    if min_comments > 0 and comments < min_comments:
+                        continue
+                    if min_views > 0 and views < min_views:
+                        continue
 
-                # 3️⃣ 이미 DB에 있는 URL인가? — Apify 크레딧 낭비 방지
-                url = parsed.get("url", "")
-                if url and video_id_from_url(url) in existing_ids:
-                    continue
+                    # 3️⃣ 이미 DB에 있는 URL인가? — Apify 크레딧 낭비 방지
+                    url = parsed.get("url", "")
+                    if url and video_id_from_url(url) in existing_ids:
+                        continue
 
-                results.append(parsed)
+                    results.append(parsed)
+                    if len(results) >= limit:
+                        break
+
                 if len(results) >= limit:
                     break
 
