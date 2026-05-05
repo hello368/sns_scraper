@@ -60,7 +60,7 @@ class Scorer:
                 ],
             }
             resp = self._deepseek.chat.completions.create(
-                model=config.deepseek_model,
+                model=config.scorer_model,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": json.dumps(payload)},

@@ -185,7 +185,7 @@ class SearchWorker:
         region_names = self.REGION_NAMES.get(region, "Global")
         try:
             resp = client.chat.completions.create(
-                model=config.deepseek_model,
+                model=config.scorer_model,
                 messages=[{
                     "role": "system",
                     "content": (

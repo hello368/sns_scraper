@@ -44,7 +44,7 @@ def generate_keywords(req: KeywordRequest):
 
     try:
         resp = client.chat.completions.create(
-            model=config.deepseek_model,
+            model=config.scorer_model,
             messages=[{
                 "role": "system",
                 "content": "Generate 15 search queries for treatment videos. JSON: {\"queries\":[...]}",

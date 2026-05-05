@@ -45,7 +45,7 @@ class Classifier:
         }
         try:
             resp = self._deepseek.chat.completions.create(
-                model=config.deepseek_model,
+                model=config.scorer_model,
                 messages=[
                     {
                         "role": "system",
