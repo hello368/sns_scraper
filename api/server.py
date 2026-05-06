@@ -34,6 +34,8 @@ app = FastAPI(
     version="0.2.0",
     description="Medical spa treatment video search & download system",
     lifespan=lifespan,
+    docs_url="/api/docs",
+    openapi_url="/api/openapi.json",
 )
 
 # CORS — 개발 환경: 모든 오리진 허용 (배포 시 특정 도메인으로 제한 필요)
@@ -78,14 +80,14 @@ from api.routes.library import router as library_router
 from api.routes.system import router as system_router
 from api.routes.auth import router as auth_router
 
-app.include_router(search_router)
-app.include_router(download_router)
-app.include_router(library_router)
-app.include_router(system_router)
-app.include_router(auth_router)
+app.include_router(search_router, prefix="/api")
+app.include_router(download_router, prefix="/api")
+app.include_router(library_router, prefix="/api")
+app.include_router(system_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 
-@app.get("/")
+@app.get("/api/")
 def root():
     return {
         "service": "MediSpa AI",
