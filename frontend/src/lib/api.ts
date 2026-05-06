@@ -10,7 +10,7 @@ import type {
   LibraryQuery,
 } from "./types"
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://medispa-api.ngrok-free.dev"
 
 let _authToken = ""
 
@@ -99,8 +99,11 @@ export const api = {
   // ─── Platform-specific search ──────────────
   searchTikTok(params: {
     keyword: string
+    date_filter?: string
     max_results?: number
     region?: string
+    min_views?: number
+    min_likes?: number
   }): Promise<{ task_id: string }> {
     return fetchApi("/search/tiktok", {
       method: "POST",
@@ -115,6 +118,8 @@ export const api = {
     length_filter?: string
     max_results?: number
     region?: string
+    min_views?: number
+    min_likes?: number
   }): Promise<{ task_id: string }> {
     return fetchApi("/search/youtube", {
       method: "POST",

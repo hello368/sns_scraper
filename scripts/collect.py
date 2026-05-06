@@ -36,7 +36,7 @@ def main():
     # 중복 제거
     all_keywords = list(dict.fromkeys(all_keywords))
 
-    platforms = ["tiktok", "instagram", "youtube"]
+    platforms = ["tiktok", "youtube"]
 
     logger.info(f"🚀 MediSpa AI Batch Collection 시작")
     logger.info(f"   키워드: {len(all_keywords)}개")

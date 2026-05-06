@@ -26,6 +26,8 @@ class YouTubeSearchRequest(BaseModel):
     length_filter: str = Field("under4", description="under4 / between420 / plus20")
     max_results: int = Field(20, ge=1, le=100, description="Max results")
     region: str = Field("US", description="Region (US, KR, JP, EU)")
+    min_views: Optional[int] = Field(default=None, ge=0, description="Minimum views filter")
+    min_likes: Optional[int] = Field(default=None, ge=0, description="Minimum likes filter")
 
 
 # ─── 전체 검색 ──────────────────────
@@ -76,7 +78,10 @@ def search(req: SearchRequest):
 # ─── 플랫폼별 검색 엔드포인트 ──────────────
 
 def _run_platform_search(keyword: str, platform: str, task_id: str,
-                          max_days: int, limit: int, region: str = "US", **extra):
+                          max_days: int, limit: int, region: str = "US",
+                          min_views: Optional[int] = None,
+                          min_likes: Optional[int] = None,
+                          **extra):
     """Run a search on a single platform (키워드 확장 없이 원본 키워드만)"""
     create_progress(task_id, 1)
     def _run():
@@ -91,6 +96,8 @@ def _run_platform_search(keyword: str, platform: str, task_id: str,
                 max_days=max_days,
                 dedup_hours=0,  # 0 = 항상 새로 검색 (수동 클릭이므로)
                 expand_keywords=False,  # 개별 탭 검색 — 유저 직접 입력 키워드만 사용
+                min_views=min_views,
+                min_likes=min_likes,
             )
             complete_progress(task_id)
         except Exception as e:
@@ -103,9 +110,8 @@ def _run_platform_search(keyword: str, platform: str, task_id: str,
 def search_youtube(req: YouTubeSearchRequest):
     """Search YouTube"""
     # date_filter enum → max_days 변환 (None = 전체 기간)
-    # 💡 api-ninja 액터가 dateFilter 미지원 → 코드단 필터만 의존
-    date_to_days = {"hour": 90, "today": 90, "week": 180, "month": 365, "year": 730, "all": None}
-    max_days = date_to_days.get(req.date_filter, None)
+    date_to_days = {"7": 7, "30": 30, "90": 90, "365": 365, "0": None, "all": None}
+    max_days = date_to_days.get(req.date_filter, 365)
     task_id = uuid.uuid4().hex[:12]
     _run_platform_search(
         keyword=req.keyword,
@@ -114,20 +120,26 @@ def search_youtube(req: YouTubeSearchRequest):
         max_days=max_days,
         limit=req.max_results,
         region=req.region,
+        min_views=req.min_views,
+        min_likes=req.min_likes,
     )
     return {"task_id": task_id, "status": "running", "platform": "youtube"}
 
 @router.post("/tiktok")
 def search_tiktok(req: YouTubeSearchRequest):
-    """Search TikTok by keyword (YouTube 스키마 재사용)"""
+    """Search TikTok by keyword"""
+    date_to_days = {"7": 7, "30": 30, "90": 90, "365": 365, "0": None, "all": None}
+    max_days = date_to_days.get(req.date_filter, 30)
     task_id = uuid.uuid4().hex[:12]
     _run_platform_search(
         keyword=req.keyword,
         platform="tiktok",
         task_id=task_id,
-        max_days=7,
+        max_days=max_days,
         limit=req.max_results,
         region=req.region,
+        min_views=req.min_views,
+        min_likes=req.min_likes,
     )
     return {"task_id": task_id, "status": "running", "platform": "tiktok"}
 

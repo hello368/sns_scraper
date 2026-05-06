@@ -23,8 +23,8 @@ def list_videos(
     platform: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
-    sort_by: str = Query("created_at", regex=r"^(created_at|likes|comments|views|relevance_score)$"),
-    sort_order: str = Query("desc", regex=r"^(asc|desc)$"),
+    sort_by: str = Query("created_at", pattern=r"^(created_at|likes|comments|views|relevance_score)$"),
+    sort_order: str = Query("desc", pattern=r"^(asc|desc)$"),
     limit: int = Query(20, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ):

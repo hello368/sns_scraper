@@ -253,7 +253,7 @@ class Repository:
             task.filepath = filepath
         if error:
             task.error = error
-            task.retry_count = DownloadTask.retry_count + 1
+            task.retry_count = (task.retry_count or 0) + 1
         if status == "downloading" and not task.started_at:
             task.started_at = datetime.now(timezone.utc)
         if status == "done":

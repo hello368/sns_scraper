@@ -65,6 +65,7 @@ export default function SearchPage() {
   const [stopping, setStopping] = useState(false)
   const [liveResults, setLiveResults] = useState<LiveResult[]>([])
   const [resultCount, setResultCount] = useState(0)
+  const [searchKeywords, setSearchKeywords] = useState<string[]>([])
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const pollingRef = useRef(false)
 
@@ -84,18 +85,16 @@ export default function SearchPage() {
         const prog = await api.getSearchProgress(tid)
         setProgress(prog)
         setElapsed(formatElapsed(Date.now() - t0))
-        // Fetch live results from library as they come in
-        if (prog.results_so_far && prog.results_so_far > 0) {
-          try {
-            const platform = prog.current_platform || activeTab
-            const lib = await api.getVideos({ platform, limit: Math.min(prog.results_so_far, 20), sort_by: "created_at", sort_order: "desc" })
-            if (lib?.videos?.length) setLiveResults(lib.videos)
-            if (lib?.total) setResultCount(lib.total)
-          } catch {}
-        }
         if (prog.status === "completed") {
           done = true; clearTask()
+          // 검색 완료 후 키워드로 필터링된 결과 가져오기
           toast.success(`Search completed in ${formatElapsed(Date.now() - t0)}`)
+          if (searchKeywords.length > 0) {
+            try {
+              const lib = await api.getVideos({ search: searchKeywords[0], limit: 20, sort_by: "relevance_score", sort_order: "desc" })
+              if (lib?.videos?.length) { setLiveResults(lib.videos); setResultCount(lib.total) }
+            } catch {}
+          }
           setStopping(false)
         } else if (prog.status === "failed") {
           done = true; clearTask()
@@ -104,16 +103,39 @@ export default function SearchPage() {
         } else if (prog.status === "stopped") {
           done = true; clearTask()
           toast.info("Search stopped — partial results saved")
+          // 중단되어도 저장된 결과는 표시
+          if (searchKeywords.length > 0) {
+            try {
+              const lib = await api.getVideos({ search: searchKeywords[0], limit: 10, sort_by: "relevance_score", sort_order: "desc" })
+              if (lib?.videos?.length) { setLiveResults(lib.videos); setResultCount(lib.total) }
+            } catch {}
+          }
           setStopping(false)
         }
-      } catch {}
+      } catch (e) {
+        // 서버 다운 감지 (404 또는 connection refused)
+        const elapsed = Date.now() - t0
+        if (elapsed > 60000) { // 1분 이상 검색 중 서버 끊김
+          done = true; clearTask()
+          toast.error(`Connection lost during search (${formatElapsed(elapsed)}). Results may be partial.`)
+          setSearching(false)
+          // 이미 저장된 결과라도 표시
+          if (searchKeywords.length > 0) {
+            try {
+              const lib = await api.getVideos({ search: searchKeywords[0], limit: 10, sort_by: "created_at", sort_order: "desc" })
+              if (lib?.videos?.length) { setLiveResults(lib.videos); setResultCount(lib.total) }
+            } catch {}
+          }
+          break
+        }
+      }
     }
     pollingRef.current = false
     setSearching(false)
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-  }, [])
+  }, [searchKeywords])
 
-  const handleSearchStart = useCallback((newTaskId: string) => {
+  const handleSearchStart = useCallback((newTaskId: string, keywords?: string[]) => {
     setSearching(true)
     setProgress(null)
     setPausedTask(null)
@@ -121,11 +143,12 @@ export default function SearchPage() {
     setLiveResults([])
     setResultCount(0)
     setTaskId(newTaskId)
+    setSearchKeywords(keywords || [])
     const t0 = Date.now()
     setStartTime(t0)
     setElapsed("0s")
     timerRef.current = setInterval(() => setElapsed(formatElapsed(Date.now() - t0)), 1000)
-    saveTask({ task_id: newTaskId, keywords: [], platforms: [], start_time: t0 })
+    saveTask({ task_id: newTaskId, keywords: keywords || [], platforms: [], start_time: t0 })
     pollProgress(newTaskId, t0)
   }, [pollProgress])
 
@@ -145,6 +168,7 @@ export default function SearchPage() {
     setElapsed(formatElapsed(Date.now() - t0))
     setSearching(true)
     setTaskId(saved.task_id)
+    setSearchKeywords(saved.keywords || [])
     timerRef.current = setInterval(() => setElapsed(formatElapsed(Date.now() - t0)), 1000)
     await pollProgress(saved.task_id, t0)
   }, [pollProgress])
@@ -242,16 +266,19 @@ export default function SearchPage() {
         </CardContent>
       </Card>
 
-      {/* Live results — real-time inline */}
+      {/* Live results — keyword-filtered after search completes */}
       {(liveResults.length > 0 || (progress?.status === "completed" && resultCount > 0)) && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">
-              Results {searching && <span className="text-sm font-normal text-muted-foreground">(updating...)</span>}
+              Results {searchKeywords.length > 0 && <span className="text-sm font-normal text-muted-foreground">for "{searchKeywords[0]}"</span>}
+              {searching && <span className="text-sm font-normal text-muted-foreground"> (updating...)</span>}
             </h2>
-            <Button size="sm" variant="outline" onClick={() => window.location.href = "/library"}>
-              View All in Library →
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => window.location.href = `/library?search=${encodeURIComponent(searchKeywords[0] || "")}`}>
+                View in Library →
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {liveResults.slice(0, 10).map(v => (
@@ -298,8 +325,8 @@ export default function SearchPage() {
               ✅ Complete — {progress.results_so_far || 0} videos saved to library
             </p>
             <div className="flex gap-2 mt-2">
-              <Button size="sm" variant="outline" onClick={() => window.location.href = "/library"}>
-                View Library
+              <Button size="sm" variant="outline" onClick={() => window.location.href = `/library?search=${encodeURIComponent(searchKeywords[0] || "")}`}>
+                View Results in Library
               </Button>
               <Button size="sm" variant="outline" onClick={() => setProgress(null)}>
                 Search Again

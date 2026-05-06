@@ -82,7 +82,15 @@ export default function LibraryPage() {
   const [totalCount, setTotalCount] = useState(0)
   const [stats, setStats] = useState<LibraryStats | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // URL 검색어 읽기 (예: /library?search=prp)
+  const getUrlSearch = () => {
+    if (typeof window === "undefined") return ""
+    const params = new URLSearchParams(window.location.search)
+    return params.get("search") || ""
+  }
   const [searchTerm, setSearchTerm] = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const [platformFilter, setPlatformFilter] = useState("all")
   const [regionFilter, setRegionFilter] = useState("all")
@@ -123,13 +131,21 @@ export default function LibraryPage() {
     fetchData()
   }, [fetchData])
 
+  // URL 검색어 초기 로드 (예: /library?search=prp)
+  useEffect(() => {
+    const urlSearch = getUrlSearch()
+    if (urlSearch) {
+      setSearchTerm(urlSearch)
+      setDebouncedSearch(urlSearch)
+    }
+  }, [])
+
   // Reset selection on page change
   useEffect(() => {
     setSelectedIds(new Set())
   }, [page, categoryFilter, platformFilter, regionFilter])
 
   // Search debounce
-  const [debouncedSearch, setDebouncedSearch] = useState("")
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(debouncedSearch)
@@ -138,15 +154,18 @@ export default function LibraryPage() {
     return () => clearTimeout(timer)
   }, [debouncedSearch])
 
-  const handleCategoryChange = (value: string) => {
+  const handleCategoryChange = (value: string | null) => {
+    if (!value) return
     setCategoryFilter(value)
     setPage(0)
   }
-  const handlePlatformChange = (value: string) => {
+  const handlePlatformChange = (value: string | null) => {
+    if (!value) return
     setPlatformFilter(value)
     setPage(0)
   }
-  const handleRegionChange = (value: string) => {
+  const handleRegionChange = (value: string | null) => {
+    if (!value) return
     setRegionFilter(value)
     setPage(0)
   }

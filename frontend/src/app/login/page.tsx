@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, FormEvent } from "react"
+import { useState, FormEvent, useEffect } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -17,11 +17,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
-  // Already logged in → redirect
-  if (user) {
-    router.replace("/")
-    return null
-  }
+  // Already logged in → redirect (must be in useEffect, not during render)
+  useEffect(() => {
+    if (user) {
+      router.replace("/")
+    }
+  }, [user, router])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -84,7 +85,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <p className="text-xs text-muted-foreground text-center mt-4">
-            Default admin: <strong>admin</strong> / <strong>admin123</strong>
+            &nbsp;
           </p>
         </CardContent>
       </Card>

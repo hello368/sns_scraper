@@ -1,0 +1,12 @@
+version: "3"
+agent:
+  authtoken: 39Usq0eY4oK5lGDbO0EZ3UWwoBE_4SifqYbypyW3v4RcARaNo
+tunnels:
+  api:
+    proto: http
+    addr: 8880
+    domain: medispa-api.ngrok-free.dev
+  ui:
+    proto: http
+    addr: 3000
+    domain: medispa-ui.ngrok-free.dev

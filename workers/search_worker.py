@@ -379,6 +379,7 @@ class SearchWorker:
                 try:
                     self._apify.run(run_id).abort()
                 except Exception:
+                    logger.debug(f"  ⚠️ Apify run abort 실패 (무시): {run_id}")
                     pass
                 return []
 
@@ -393,6 +394,7 @@ class SearchWorker:
                     self._repo.save_search(keyword, platform, status=status.lower())
                     return []
             except Exception:
+                logger.debug("  ⚠️ Apify 상태 폴링 실패 (재시도)")
                 pass
 
             _time.sleep(2)

@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useAuth } from "@/contexts/AuthContext"
+import { useRouter } from "next/navigation"
 import { api } from "@/lib/api"
 import type { VideoItem, LibraryStats, StatusResponse } from "@/lib/types"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -135,12 +137,45 @@ function formatCount(n: number): string {
 }
 
 export default function DashboardPage() {
+  const { user, loading: authLoading, login } = useAuth()
+  const router = useRouter()
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [stats, setStats] = useState<LibraryStats | null>(null)
   const [videos, setVideos] = useState<VideoItem[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Filter/sort state
+  // Guest login state (shown when !user)
+  const [guestUsername, setGuestUsername] = useState("")
+  const [guestPassword, setGuestPassword] = useState("")
+  const [guestLoggingIn, setGuestLoggingIn] = useState(false)
+  const [guestError, setGuestError] = useState("")
+
+  // Auth guard: redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login")
+    }
+  }, [authLoading, user, router])
+
+  // Inline login handler (for the guest login form on this page)
+  async function handleGuestLogin(e: React.FormEvent) {
+    e.preventDefault()
+    if (!guestUsername.trim() || !guestPassword.trim()) {
+      setGuestError("Enter username and password")
+      return
+    }
+    setGuestLoggingIn(true)
+    setGuestError("")
+    try {
+      await login(guestUsername, guestPassword)
+    } catch (err) {
+      setGuestError((err as Error).message || "Login failed")
+    } finally {
+      setGuestLoggingIn(false)
+    }
+  }
+
+  // Filter/sort state (must be before early returns for hooks consistency)
   const [regionFilter, setRegionFilter] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("created_at")
   const [sortOrder, setSortOrder] = useState<string>("desc")
@@ -172,6 +207,64 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  // Still checking auth
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  // Not logged in — show login form directly (avoids navigation flash)
+  if (!user) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <div data-slot="card" data-size="default" className="w-full max-w-sm">
+          <div data-slot="card-header" className="text-center">
+            <div data-slot="card-title" className="text-xl font-bold">MediSpa AI</div>
+            <div data-slot="card-description" className="text-sm text-muted-foreground">Sign in to your account</div>
+          </div>
+          <div data-slot="card-content">
+            <form onSubmit={handleGuestLogin} className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Username</label>
+                <input
+                  value={guestUsername}
+                  onChange={(e) => setGuestUsername(e.target.value)}
+                  placeholder="admin"
+                  autoFocus
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Password</label>
+                <input
+                  type="password"
+                  value={guestPassword}
+                  onChange={(e) => setGuestPassword(e.target.value)}
+                  placeholder="••••••"
+                  className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm"
+                />
+              </div>
+              {guestError && (
+                <p className="text-sm text-destructive">{guestError.replace("API 401: ", "")}</p>
+              )}
+              <button type="submit" disabled={guestLoggingIn} className="w-full h-8 rounded-lg bg-primary text-primary-foreground text-sm font-medium flex items-center justify-center gap-2">
+                {guestLoggingIn ? (
+                  <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></svg>
+                )}
+                {guestLoggingIn ? "Signing in..." : "Sign In"}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return (
@@ -264,7 +357,7 @@ export default function DashboardPage() {
         {/* Sort By */}
         <div className="flex items-center gap-2">
           <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select value={sortBy} onValueChange={(v) => v && setSortBy(v)}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>

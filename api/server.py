@@ -36,7 +36,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS — 모든 dev 오리진 허용
+# CORS — 개발 환경: 모든 오리진 허용 (배포 시 특정 도메인으로 제한 필요)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

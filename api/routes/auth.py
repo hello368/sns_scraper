@@ -2,6 +2,7 @@
 인증 API 라우트 — 로그인, 회원가입, 사용자 관리
 """
 from __future__ import annotations
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -16,6 +17,7 @@ from core.auth import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+logger = logging.getLogger("medispa")
 
 
 # ─── Schemas ─────────────────────────────────────────────
@@ -58,12 +60,12 @@ def seed_admin(session: Session = None):
             admin = User(
                 username="admin",
                 email="admin@medispa.ai",
-                hashed_password=hash_password("admin123"),
+                hashed_password=hash_password("password"),
                 role="admin",
             )
             session.add(admin)
             session.commit()
-            print("✅ Admin account created (admin / admin123)")
+            logger.info("✅ Admin account created (use /login to set password)")
     finally:
         if close:
             session.close()

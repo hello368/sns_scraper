@@ -34,6 +34,9 @@ export function Sidebar() {
   const { user, loading, logout, isAdmin } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
 
+  // Hide sidebar on login page
+  if (pathname === "/login") return null
+
   const pageTitle = navItems.find((i) => i.href === pathname)?.label || "MediSpa AI"
 
   function navigate(href: string) {

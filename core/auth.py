@@ -2,6 +2,7 @@
 JWT 인증 유틸리티 — 토큰 생성/검증, 의존성 주입
 """
 from __future__ import annotations
+import logging
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -17,7 +18,12 @@ from core.models import User, get_session
 
 # ─── Config ───────────────────────────────────────────────
 
-SECRET_KEY = os.getenv("JWT_SECRET", "medi-spa-secret-change-in-prod-" + uuid.uuid4().hex)
+_jwt_secret = os.getenv("JWT_SECRET")
+if not _jwt_secret:
+    logger = logging.getLogger("medispa")
+    logger.warning("⚠️ JWT_SECRET 환경변수 미설정 — 임의 키 생성 (서버 재시작 시 세션 무효화)")
+    _jwt_secret = uuid.uuid4().hex + uuid.uuid4().hex
+SECRET_KEY = _jwt_secret
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
